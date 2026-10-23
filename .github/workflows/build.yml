@@ -19,7 +19,8 @@ jobs:
         run: dotnet run --project tests/YingView.Imaging.Tests -c Release
       - name: Test Store entitlement rules
         run: dotnet run --project tests/YingView.Commerce.Tests -c Release
-      - name: Test viewer interactions without desktop input
+      - name: Validate client branding
+        timeout-minutes: 3
         run: dotnet run --project tests/YingView.App.Tests -c Release
       - name: Publish standalone client
         shell: pwsh

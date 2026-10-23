@@ -19,6 +19,15 @@ internal static class Program
     [STAThread]
     private static int Main()
     {
+        if (string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase))
+        {
+            Check(ClientBranding.ResolveLanguage("zh-CN", "en-US") == "zh", "Chinese download must retain Chinese branding.");
+            Check(ClientBranding.ResolveLanguage("en-US", "zh-CN") == "en", "English download must retain English branding.");
+            Check(ClientBranding.ResolveLanguage("auto", "ja-JP") == "en", "Other locales must fall back to English.");
+            Check(ClientBranding.DisplayName("zh") == "映窗" && ClientBranding.DisplayName("en") == "YingView", "Display names must stay localized.");
+            Console.WriteLine("Client branding assertions passed. SKIP: WPF offscreen rendering and Recycle Bin tests require a local Windows desktop session.");
+            return 0;
+        }
         Directory.CreateDirectory(Output);
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
         var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };

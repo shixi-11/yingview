@@ -29,6 +29,7 @@ jobs:
         run: |
           if ($env:RELEASE_VERSION -notmatch '^v\d+\.\d+\.\d+-preview\.\d+$') { throw 'Use a preview version such as v0.2.0-preview.1.' }
       - name: Test image decoding and Store rules
+        timeout-minutes: 5
         shell: pwsh
         run: |
           dotnet run --project tests/YingView.Imaging.Tests -c Release
