@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+dist/
+output/
+.vs/
+*.user
+*.suo
+*.log
+*.pfx
+*.snk
+.DS_Store
+docs/商业化与发布.md

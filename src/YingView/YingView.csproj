@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>YingView</AssemblyName>
+    <RootNamespace>YingView</RootNamespace>
+    <Version>0.1.0</Version>
+    <Product>YingView</Product>
+    <Authors>Shixi Lin</Authors>
+    <Copyright>Copyright © 2026 Shixi Lin</Copyright>
+    <PackageLicenseExpression>PolyForm-Noncommercial-1.0.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/shixi-11/yingview</RepositoryUrl>
+    <ApplicationIcon>Assets/yingview.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets/yingview.ico" />
+    <EmbeddedResource Include="../../LICENSE" LogicalName="YingView.LICENSE" />
+    <EmbeddedResource Include="../../NOTICE" LogicalName="YingView.NOTICE" />
+    <EmbeddedResource Include="../../ThirdParty/*.txt" LogicalName="YingView.ThirdParty.%(Filename).txt" />
+    <ProjectReference Include="../YingView.Core/YingView.Core.csproj" />
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="15.0.0" />
+  </ItemGroup>
+</Project>

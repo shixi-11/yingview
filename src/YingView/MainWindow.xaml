@@ -1,0 +1,55 @@
+<Window x:Class="YingView.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:YingView"
+    Title="映窗 · YingView" Icon="Assets/yingview.ico" Width="1280" Height="820" MinWidth="960" MinHeight="520" WindowState="Maximized" Background="{DynamicResource ShellBrush}" Foreground="{DynamicResource TextBrush}" FontFamily="Segoe UI, Microsoft YaHei UI" AllowDrop="True" UseLayoutRounding="True">
+  <Grid x:Name="Root">
+    <Grid.RowDefinitions><RowDefinition Height="60"/><RowDefinition Height="*"/><RowDefinition Height="90"/><RowDefinition Height="30"/></Grid.RowDefinitions>
+    <Border x:Name="Toolbar" Background="{DynamicResource BarBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,0,0,1">
+      <Grid Margin="16,0">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock Text="YingView" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,20,0" Foreground="{DynamicResource AccentBrush}"/>
+          <Button x:Name="OpenButton" Click="OpenClick" Background="#206F8B87"/>
+          <Button x:Name="PreviousButton" Click="PreviousClick" Content="&#xE76B;" FontFamily="Segoe Fluent Icons" FontSize="15" Padding="11,10"/>
+          <Button x:Name="NextButton" Click="NextClick" Content="&#xE76C;" FontFamily="Segoe Fluent Icons" FontSize="15" Padding="11,10"/>
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Button x:Name="FitButton" Click="FitClick"/><Button x:Name="FillButton" Click="FillClick"/>
+          <Button x:Name="ActualButton" Content="100%" Click="ActualClick"/>
+          <Border Width="1" Background="{DynamicResource LineBrush}" Height="20" Margin="10,0"/>
+          <Button x:Name="ZoomOutButton" Content="&#xE738;" FontFamily="Segoe Fluent Icons" Click="ZoomOutClick" Padding="10,9"/>
+          <TextBlock x:Name="ZoomLabel" Text="—" VerticalAlignment="Center" TextAlignment="Center" Width="55" FontSize="12" Foreground="{DynamicResource MutedBrush}"/>
+          <Button x:Name="ZoomInButton" Content="&#xE710;" FontFamily="Segoe Fluent Icons" Click="ZoomInClick" Padding="10,9"/>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button x:Name="RotateButton" Content="&#xE7AD;" FontFamily="Segoe Fluent Icons" FontSize="17" Click="RotateClick"/>
+          <Button x:Name="FullscreenButton" Content="&#xE740;" FontFamily="Segoe Fluent Icons" FontSize="17" Click="FullscreenClick"/>
+          <Menu VerticalAlignment="Center"><MenuItem x:Name="MoreMenu" Header="•••" FontSize="17" Foreground="{DynamicResource TextBrush}"/></Menu>
+        </StackPanel>
+      </Grid>
+    </Border>
+    <Grid Grid.Row="1" x:Name="Stage">
+      <local:ImageSurface x:Name="Surface"/>
+      <StackPanel x:Name="EmptyPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="32">
+        <TextBlock Text="&#xEB9F;" FontFamily="Segoe Fluent Icons" FontSize="66" HorizontalAlignment="Center" Foreground="{DynamicResource AccentBrush}" Margin="0,0,0,26"/>
+        <TextBlock x:Name="EmptyTitle" FontSize="28" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+        <TextBlock x:Name="EmptySubtitle" FontSize="14" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" Margin="0,13,0,26"/>
+        <Button x:Name="EmptyOpenButton" Click="OpenClick" HorizontalAlignment="Center" Background="{DynamicResource AccentBrush}" Foreground="#14231F" FontSize="14" Padding="30,12"/>
+        <TextBlock Text="PNG · JPG · WebP · AVIF · GIF · TIFF · HEIC" FontSize="12" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" Margin="0,24,0,0"/>
+      </StackPanel>
+      <Border x:Name="InfoPanel" Visibility="Collapsed" Width="310" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{DynamicResource BarBrush}" CornerRadius="8" Padding="20" Margin="20">
+        <StackPanel><TextBlock x:Name="InfoTitle" FontSize="16" FontWeight="SemiBold"/><TextBox x:Name="InfoText" Margin="0,16,0,0" TextWrapping="Wrap" IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource TextBrush}" FontSize="13"/></StackPanel>
+      </Border>
+      <Border x:Name="Toast" Visibility="Collapsed" Background="{DynamicResource BarBrush}" CornerRadius="7" Padding="17,11" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="20,20,20,24" MaxWidth="700">
+        <TextBlock x:Name="ToastText" TextWrapping="Wrap" FontSize="13"/>
+      </Border>
+    </Grid>
+    <Border x:Name="Filmstrip" Grid.Row="2" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0" Background="{DynamicResource ShellBrush}">
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><StackPanel x:Name="Thumbnails" Orientation="Horizontal" HorizontalAlignment="Center" Margin="8,7"/></ScrollViewer>
+    </Border>
+    <Border x:Name="StatusBar" Grid.Row="3" Background="{DynamicResource BarBrush}">
+      <Grid Margin="18,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock x:Name="FileLabel" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource MutedBrush}"/>
+        <TextBlock x:Name="DetailsLabel" Grid.Column="1" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource MutedBrush}" Margin="20,0,0,0"/>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

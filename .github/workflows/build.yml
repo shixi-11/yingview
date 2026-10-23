@@ -1,0 +1,22 @@
+name: Windows client
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Test viewport and file ordering
+        run: dotnet run --project tests/YingView.Core.Tests -c Release
+      - name: Test image decoding
+        run: dotnet run --project tests/YingView.Imaging.Tests -c Release
+      - name: Publish standalone client
+        shell: pwsh
+        run: ./scripts/build.ps1
