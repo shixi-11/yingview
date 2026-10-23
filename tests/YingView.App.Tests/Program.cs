@@ -45,7 +45,9 @@ internal static class Program
             try
             {
                 Pump(InvokeAsync(window, "OpenPaths", (object)new[] { fixtures[0], fixtures[1], fixtures[2] }));
+                VerifyRecovery(window, fixtures);
                 VerifyReviewWindow(fixtures);
+                Pump(InvokeAsync(window, "OpenPaths", (object)new[] { fixtures[0], fixtures[1], fixtures[2] }));
                 var surface = (FrameworkElement)Field(window, "Surface");
                 Check(surface.ActualWidth > 0 && surface.ActualHeight > 0, "Detached surface must be laid out.");
                 var view = (Viewport)Property(surface, "View");
@@ -83,6 +85,7 @@ internal static class Program
                     Check(!File.Exists(fixtures[0]) && !File.Exists(fixtures[1]) && !File.Exists(fixtures[2]), "Delete flow should recycle each disposable fixture.");
                 }
                 VerifyStyleCancel(settings);
+                VerifyStyleApply();
                 // The representative UI captures above are rendered before any delete operation.
             }
             finally
@@ -139,7 +142,16 @@ internal static class Program
     {
         var bitmap = new WriteableBitmap(width, height, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null);
         var pixels = new byte[width * height * 4];
-        for (var i = 0; i < pixels.Length; i += 4) { pixels[i] = 0x80; pixels[i + 1] = 0xA0; pixels[i + 2] = 0xC0; pixels[i + 3] = 0xFF; }
+        for (var y = 0; y < height; y++)
+        for (var x = 0; x < width; x++)
+        {
+            var i = (y * width + x) * 4;
+            pixels[i] = (byte)(80 + 100d * x / width);
+            pixels[i + 1] = (byte)(95 + 110d * y / height);
+            pixels[i + 2] = (byte)(200 - 80d * x / width);
+            var inset = Math.Min(width, height) / 12;
+            pixels[i + 3] = (byte)(x < inset || y < inset || x >= width - inset || y >= height - inset ? 128 : 255);
+        }
         bitmap.WritePixels(new Int32Rect(0, 0, width, height), pixels, width * 4, 0);
         var path = Path.Combine(dir, name + "-" + Guid.NewGuid().ToString("N") + ".png");
         using var stream = File.Create(path);
@@ -159,6 +171,39 @@ internal static class Program
             Check(!double.IsNaN(root.DesiredSize.Width) && root.DesiredSize.Width <= width + 1, $"Layout must fit logical width {width}.");
             Check(root.ActualWidth <= width + 1, $"Root must not overflow logical width {width}.");
         }
+    }
+
+    private static void VerifyRecovery(MainWindow window, string[] fixtures)
+    {
+        var root = (FrameworkElement)Field(window, "Root");
+        var directory = Path.Combine(Output, "recovery-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        Pump(InvokeAsync(window, "OpenPaths", (object)new[] { directory }));
+        var surface = (ImageSurface)Field(window, "Surface");
+        Check(surface.Document is null && (string?)Field(window, "_current") is null, "An empty folder must clear the previous image and deletion target.");
+        Check(((Button)Field(window, "DeleteButton")).IsEnabled == false, "An empty folder must disable deletion.");
+        var broken = Path.Combine(directory, "a-broken.png");
+        File.WriteAllText(broken, "not an image");
+        Pump(InvokeAsync(window, "OpenPaths", (object)new[] { broken }));
+        Check(surface.Document is null && ((FrameworkElement)Field(window, "EmptyPanel")).Visibility == Visibility.Visible,
+            "A corrupt file must display a recoverable empty state rather than the previous image.");
+        Pump(InvokeAsync(window, "OpenPaths", (object)new[] { Path.Combine(directory, "missing.png") }));
+        Check(surface.Document is null && (string?)Field(window, "_current") is null,
+            "Opening a missing file must not silently select a different image from its folder.");
+        var valid = Path.Combine(directory, "b-valid.png"); File.Copy(fixtures[0], valid);
+        Pump(InvokeAsync(window, "OpenPaths", (object)new[] { valid }));
+        Check(surface.Document is not null, "Opening a valid file must recover after a decode error.");
+        Check(((FrameworkElement)Field(window, "Toast")).Visibility == Visibility.Collapsed, "A successful open must clear the previous file's error toast.");
+        var moved = Path.Combine(directory, "c-moved.png"); File.Move(valid, moved);
+        Pump(InvokeAsync(window, "ReloadCurrent"));
+        Check(string.Equals((string?)Field(window, "_current"), broken, StringComparison.OrdinalIgnoreCase), "Refresh after an external move must re-enumerate the folder.");
+        Pump(InvokeAsync(window, "Navigate", 1));
+        Check(surface.Document is not null && string.Equals((string?)Field(window, "_current"), moved, StringComparison.OrdinalIgnoreCase), "Navigation must recover from a failed file in the refreshed folder.");
+        using var source = new HwndSource(new HwndSourceParameters("YingView.App.Tests.FocusedControl") { Width = 1, Height = 1, WindowStyle = 0 });
+        var key = new KeyEventArgs(Keyboard.PrimaryDevice, source, Environment.TickCount, Key.Delete)
+        { RoutedEvent = Keyboard.PreviewKeyDownEvent, Source = (Button)Field(window, "OpenButton") };
+        window.RaiseEvent(key);
+        Check(!key.Handled && File.Exists(moved), "Delete from a focused toolbar control must not delete an image.");
     }
 
     private static void VerifyDeleteKeyAndRecycle(MainWindow window, string target, string? next)
@@ -208,7 +253,7 @@ internal static class Program
         Check(cancel is not null, "Style studio should expose its cancel action.");
         var slider = (Slider)Field(studio, "_scale");
         slider.Value = 1.2;
-        SaveWindowContentReviewPng(studio, "style-studio-detached.png", 680, 560);
+        SaveWindowContentReviewPng(studio, "style-studio-detached.png", 680, 760);
         cancel!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(settings.Theme == original, "Cancel/close should preserve the original theme.");
         Check(scalePreviews.Count >= 2 && Math.Abs(scalePreviews[^1] - settings.TextScale) < 0.001, "Cancel should restore the live text-scale preview.");
@@ -238,6 +283,51 @@ internal static class Program
         Check(!(bool)Field(review, "_syncing"), "Review sync control should turn synchronization off.");
         surfaces[0].Zoom(2);
         Check(Math.Abs(ZoomRatio(surfaces[0]) - 2) < 0.02 && Math.Abs(ZoomRatio(surfaces[1]) - 1) < 0.02, "With sync off, each review image should retain its independent zoom state.");
+        var pickers = (ComboBox[])Field(review, "_pickers");
+        pickers[0].SelectedIndex = 2;
+        SpinUntil(() => surfaces[0].Document?.Width == 4200, TimeSpan.FromSeconds(20));
+        Check(pickers[0].Template.FindName("PART_Popup", pickers[0]) is System.Windows.Controls.Primitives.Popup,
+            "The styled file picker must retain the native dropdown template part.");
+        var decisions = (Button[][])Field(review, "_decisionButtons");
+        decisions[0][0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(((Button)Field(review, "_exportButton")).IsEnabled, "A loaded, marked image should enable CSV export.");
+        pickers[1].SelectedIndex = 2;
+        SpinUntil(() => surfaces[1].Document?.Width == 4200, TimeSpan.FromSeconds(20));
+        Check(((TextBlock[])Field(review, "_decisions")).All(t => t.Text == "Marked to keep"), "The same file must show the same session mark in both panes.");
+        review.Close();
+        Check(surfaces.All(s => s.Document is null), "Closing comparison must release both images and animation timers.");
+
+        var originalSize = Application.Current.Resources["ControlTextSize"];
+        try
+        {
+            Application.Current.Resources["ControlTextSize"] = 16.9;
+            var chinese = new ReviewWindow(fixtures, fixtures[0], isZh: true);
+            Pump(InvokeAsync(chinese, "LoadPairAsync", 0, 1));
+            SaveWindowContentReviewPng(chinese, "review-900-zh-large-text.png", 900, 600);
+            var export = (Button)Field(chinese, "_exportButton");
+            Check(export.FontSize > 15 && export.ActualWidth > 80, "Comparison actions must follow the larger interface text setting.");
+            chinese.Close();
+        }
+        finally { Application.Current.Resources["ControlTextSize"] = originalSize; }
+    }
+
+    private static void VerifyStyleApply()
+    {
+        var path = Path.Combine(Output, "settings", "style-apply.json");
+        var settings = new Preferences(path) { Language = "zh", AppearanceUiVersion = 2 };
+        ViewerTheme? preview = null;
+        var studio = new StyleStudioWindow(settings, theme => preview = theme, _ => { }, _ => { }, false);
+        InvokeVoid(studio, "SetTheme", ViewerTheme.BuiltIn[2]);
+        ((TextBox)Field(studio, "_name")).Text = "山间苔色";
+        ((Slider)Field(studio, "_scale")).Value = 1.15;
+        ((CheckBox)Field(studio, "_compact")).IsChecked = true;
+        SaveWindowContentReviewPng(studio, "style-studio-zh.png", 704, 760);
+        Check(preview?.Name == "山间苔色", "Renaming a theme must update its live preview.");
+        InvokeVoid(studio, "Apply");
+        var saved = System.Text.Json.JsonSerializer.Deserialize<Preferences>(File.ReadAllText(path))!;
+        Check(studio.Applied && saved.Theme.Name == "山间苔色" && saved.Theme.Canvas == ViewerTheme.BuiltIn[2].Canvas
+            && Math.Abs(saved.TextScale - 1.15) < 0.001 && saved.CompactToolbar,
+            "Apply must persist custom name, colors, text size, and compact layout without a Pro entitlement.");
     }
 
     private static double ZoomRatio(ImageSurface surface)

@@ -3,7 +3,9 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
@@ -27,9 +29,11 @@ public sealed class ReviewWindow : Window
     private readonly Dictionary<string, string> _marks = new(StringComparer.OrdinalIgnoreCase);
     private readonly Brush[] _canvasBrushes = [new SolidColorBrush(Color.FromRgb(17, 20, 23)), Brushes.White, CheckerBrush()];
     private readonly string[] _backgroundNames;
+    private Button? _exportButton;
     private int _backgroundIndex;
     private bool _syncing = true;
     private readonly bool[] _sideReady = new bool[2];
+    private readonly bool[] _sideLoading = new bool[2];
     private bool _closed;
 
     public ReviewWindow(string[] files, string current, bool isZh)
@@ -51,14 +55,27 @@ public sealed class ReviewWindow : Window
         UseLayoutRounding = true;
         Resources["HoverBrush"] = BrushFrom("#303A3E");
         Resources["PressedBrush"] = BrushFrom("#202824");
+        SetResourceReference(FrameworkElement.TagProperty, "ControlTextSize");
         Content = BuildContent(start, second);
+        ApplyTextScaling(Content);
+        RefreshExportButton();
         Loaded += async (_, _) => await LoadPairAsync(start, second);
         PreviewKeyDown += (_, e) =>
         {
+            if (e.OriginalSource is TextBox || Keyboard.FocusedElement is ComboBox { IsDropDownOpen: true }) return;
             if (e.Key is System.Windows.Input.Key.F or System.Windows.Input.Key.D0 or System.Windows.Input.Key.NumPad0)
             { FitBoth(); e.Handled = true; }
         };
-        Closed += (_, _) => { _closed = true; for (var i = 0; i < _loadGeneration.Length; i++) _loadGeneration[i]++; };
+        Closed += (_, _) =>
+        {
+            _closed = true;
+            for (var i = 0; i < _loadGeneration.Length; i++)
+            {
+                _loadGeneration[i]++;
+                _sideLoading[i] = false;
+                _surfaces[i].SetDocument(null, ViewportFitMode.Contain);
+            }
+        };
     }
 
     private const string Pending = "Pending";
@@ -73,25 +90,27 @@ public sealed class ReviewWindow : Window
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        var header = new Grid { Margin = new Thickness(2, 0, 2, 12) };
+        var header = new Grid { Margin = new Thickness(2, 0, 2, 10) };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var titleStack = new StackPanel();
-        titleStack.Children.Add(new TextBlock { Text = T("对照审阅", "Compare & review"), FontSize = 19, FontWeight = FontWeights.SemiBold });
-        titleStack.Children.Add(new TextBlock { Text = T("同步查看细节，记录选择并导出清单", "View details together, record your choices, and export a list."), TextWrapping = TextWrapping.Wrap, FontSize = 12, Foreground = BrushFrom("#A9B1B8"), Margin = new Thickness(0, 3, 0, 0) });
+        var titleStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        titleStack.Children.Add(new TextBlock { Text = T("对照审阅", "Compare review"), FontSize = 17, FontWeight = FontWeights.SemiBold });
+        titleStack.Children.Add(new TextBlock { Text = T("双图同步查看 · 人工标记", "Synchronized view · Manual review"), TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = BrushFrom("#A9B1B8"), Margin = new Thickness(0, 2, 0, 0) });
         header.Children.Add(titleStack);
-        var headerActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        var fit = MakeButton(T("完整显示", "Fit images"), subtle: true);
+        var headerActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+        var fit = MakeButton(T("适合", "Fit"), subtle: true);
         fit.ToolTip = T("完整显示两张图片 · F", "Fit both images · F");
         fit.Click += (_, _) => FitBoth(); headerActions.Children.Add(fit);
         var syncToggle = MakeButton(T("同步视图：开", "Sync view: On"), subtle: true);
+        syncToggle.ToolTip = T("同步两侧缩放和画面位置", "Synchronize zoom and image position");
         syncToggle.Click += (_, _) =>
         {
             _syncing = !_syncing;
             syncToggle.Content = T(_syncing ? "同步视图：开" : "同步视图：关", _syncing ? "Sync view: On" : "Sync view: Off");
             if (_syncing) Synchronize(0);
         };
-        var backgroundButton = MakeButton(_backgroundNames[0], subtle: true);
+        var backgroundButton = MakeButton(BackgroundLabel(), subtle: true);
+        backgroundButton.MinWidth = 76;
         backgroundButton.ToolTip = T("切换透明图的显示底色", "Cycle the transparency preview background");
         backgroundButton.Click += (_, _) => CycleBackground(backgroundButton);
         headerActions.Children.Add(syncToggle); headerActions.Children.Add(backgroundButton);
@@ -109,11 +128,11 @@ public sealed class ReviewWindow : Window
         var footer = new Grid { Margin = new Thickness(2, 2, 2, 0) };
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var help = new TextBlock { Text = T("缩放：滚轮　移动：拖动画面　导出只保存本次人工标记", "Zoom: wheel　Pan: drag　Export includes only your review marks"), FontSize = 12, Foreground = BrushFrom("#A9B1B8"), VerticalAlignment = VerticalAlignment.Center };
+        var help = new TextBlock { Text = T("滚轮缩放 · 拖动画面", "Wheel to zoom · Drag to pan"), FontSize = 11, Foreground = BrushFrom("#A9B1B8"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
         footer.Children.Add(help);
-        var export = MakeButton(T("导出 CSV 清单…", "Export CSV list…"), primary: true);
-        export.Click += async (_, _) => await ExportCsvAsync();
-        Grid.SetColumn(export, 1); footer.Children.Add(export);
+        _exportButton = MakeButton(T("导出 CSV…", "Export CSV…"), primary: true);
+        _exportButton.Click += async (_, _) => await ExportCsvAsync();
+        Grid.SetColumn(_exportButton, 1); footer.Children.Add(_exportButton);
         Grid.SetRow(footer, 2); root.Children.Add(footer);
         return root;
     }
@@ -124,10 +143,20 @@ public sealed class ReviewWindow : Window
         pane.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         pane.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         pane.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var picker = new ComboBox { Height = 34, Margin = new Thickness(0, 0, 0, 8), Padding = new Thickness(8, 4, 8, 4), Background = Brushes.White, Foreground = BrushFrom("#20242A"), BorderBrush = BrushFrom("#525C62"), FontSize = 12 };
-        picker.ItemsSource = BuildDisplayNames();
-        picker.SelectedIndex = initialIndex;
         int side = column == 0 ? 0 : 1;
+        var selector = new Grid { Margin = new Thickness(0, 0, 0, 7) };
+        selector.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        selector.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var sideLabel = new TextBlock { Text = _isZh ? (side == 0 ? "左图" : "右图") : (side == 0 ? "LEFT" : "RIGHT"), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = BrushFrom("#A9B1B8"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 10, 0) };
+        selector.Children.Add(sideLabel);
+        var picker = new ComboBox { MinHeight = 32, Padding = new Thickness(8, 4, 8, 4), Background = BrushFrom("#20262B"), Foreground = BrushFrom("#EDF0F2"), BorderBrush = BrushFrom("#3B454D"), FontSize = 12, MaxDropDownHeight = 360 };
+        var itemStyle = new Style(typeof(ComboBoxItem));
+        itemStyle.Setters.Add(new Setter(Control.ForegroundProperty, BrushFrom("#20242A")));
+        itemStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.White));
+        itemStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(8, 5, 8, 5)));
+        picker.ItemContainerStyle = itemStyle;
+        picker.ItemsSource = BuildDisplayNames(_files);
+        picker.SelectedIndex = initialIndex;
         picker.SelectionChanged += async (_, _) =>
         {
             if (picker.SelectedIndex < 0) return;
@@ -135,7 +164,8 @@ public sealed class ReviewWindow : Window
             await LoadSideAsync(side, path);
         };
         _pickers[side] = picker;
-        pane.Children.Add(picker);
+        Grid.SetColumn(picker, 1); selector.Children.Add(picker);
+        pane.Children.Add(selector);
 
         var surface = new ImageSurface { CanvasBrush = _canvasBrushes[_backgroundIndex], AlphaBackground = "dark" };
         surface.ViewChanged += () => { if (_syncing && !_syncingNow) Synchronize(side); };
@@ -167,7 +197,7 @@ public sealed class ReviewWindow : Window
     private bool _syncingNow;
     private void Synchronize(int sourceSide)
     {
-        if (!_syncing || _syncingNow || _surfaces.Any(s => s?.Document is null)) return;
+        if (_closed || !_syncing || _syncingNow || _surfaces.Any(s => s?.Document is null)) return;
         var srcSurface = _surfaces[sourceSide];
         var src = srcSurface.View;
         var dstSurface = _surfaces[1 - sourceSide];
@@ -223,11 +253,13 @@ public sealed class ReviewWindow : Window
         if (_closed) return;
         var generation = ++_loadGeneration[side];
         _sideReady[side] = false;
+        _sideLoading[side] = true;
         foreach (var button in _decisionButtons[side]) button.IsEnabled = false;
         _surfaces[side].SetDocument(null, ViewportFitMode.Contain);
         _dimensions[side].Text = T("正在读取图片…", "Loading image…");
         _decisions[side].Text = T("读取中", "Loading");
         _decisions[side].Foreground = BrushFrom("#A9B1B8");
+        RefreshExportButton();
 
         try
         {
@@ -241,9 +273,11 @@ public sealed class ReviewWindow : Window
                 _dimensions[side].Text = $"{doc.Width:N0} × {doc.Height:N0} px · {doc.Format}";
                 _marks.TryAdd(path, Pending);
                 _sideReady[side] = true;
+                _sideLoading[side] = false;
                 foreach (var button in _decisionButtons[side]) button.IsEnabled = true;
                 RefreshDecision(side);
                 if (_syncing) Synchronize(side);
+                RefreshExportButton();
             }
             finally { _loadGates[side].Release(); }
         }
@@ -252,9 +286,11 @@ public sealed class ReviewWindow : Window
             if (!IsCurrentLoad(side, path, generation)) return;
             _surfaces[side].SetDocument(null, ViewportFitMode.Contain);
             _sideReady[side] = false;
+            _sideLoading[side] = false;
             foreach (var button in _decisionButtons[side]) button.IsEnabled = false;
             _dimensions[side].Text = T("无法读取此图片，请选择其他文件。", "Could not read this image. Choose another file.");
             _decisions[side].Text = T("不可用", "Unavailable");
+            RefreshExportButton();
         }
     }
 
@@ -271,11 +307,56 @@ public sealed class ReviewWindow : Window
 
     private void RefreshDecision(int side)
     {
+        if (!_sideReady[side]) return;
         int index = _pickers[side].SelectedIndex;
         if (index < 0) return;
         var mark = _marks.GetValueOrDefault(_files[index], Pending);
         _decisions[side].Text = mark == Keep ? T("已标记保留", "Marked to keep") : T("待定", "Pending");
         _decisions[side].Foreground = mark == Keep ? BrushFrom("#91D9C5") : BrushFrom("#A9B1B8");
+    }
+
+    private void RefreshExportButton()
+    {
+        if (_exportButton is not null)
+            _exportButton.IsEnabled = !_closed && _marks.Count > 0 && !_sideLoading.Any(loading => loading);
+    }
+
+    private void ApplyTextScaling(object? node)
+    {
+        if (node is not DependencyObject element) return;
+        if (element is Control control && control is not Window)
+        {
+            var ratio = Math.Max(0.7, control.FontSize / 13d);
+            control.SetBinding(Control.FontSizeProperty, TextScaleBinding(ratio));
+        }
+        else if (element is TextBlock text)
+        {
+            var ratio = Math.Max(0.7, text.FontSize / 13d);
+            text.SetBinding(TextBlock.FontSizeProperty, TextScaleBinding(ratio));
+        }
+
+        foreach (var child in LogicalTreeHelper.GetChildren(element).OfType<DependencyObject>().ToArray())
+            ApplyTextScaling(child);
+    }
+
+    private Binding TextScaleBinding(double ratio) => new("Tag")
+    {
+        Source = this,
+        Converter = TextScaleConverter.Instance,
+        ConverterParameter = ratio,
+        FallbackValue = 13 * ratio,
+        TargetNullValue = 13 * ratio
+    };
+
+    private sealed class TextScaleConverter : IValueConverter
+    {
+        public static TextScaleConverter Instance { get; } = new();
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var ratio = parameter is double factor ? factor : 1d;
+            return value is double baseSize && double.IsFinite(baseSize) && baseSize > 0 ? baseSize * ratio : 13 * ratio;
+        }
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
     }
 
     private void CycleBackground(Button button)
@@ -288,8 +369,10 @@ public sealed class ReviewWindow : Window
             surface.AlphaBackground = _backgroundIndex switch { 1 => "light", 2 => "checker", _ => "dark" };
             surface.InvalidateVisual();
         }
-        button.Content = _backgroundNames[_backgroundIndex];
+        button.Content = BackgroundLabel();
     }
+
+    private string BackgroundLabel() => T($"底色 · {_backgroundNames[_backgroundIndex]}", $"BG · {_backgroundNames[_backgroundIndex]}");
 
     private async Task ExportCsvAsync()
     {
@@ -330,13 +413,29 @@ public sealed class ReviewWindow : Window
     }
 
     private static Brush BrushFrom(string color) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
-    private string[] BuildDisplayNames()
+    private static string[] BuildDisplayNames(string[] files)
     {
-        var duplicates = _files.GroupBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return _files.Select(path => duplicates.Contains(Path.GetFileName(path))
-            ? $"{Path.GetFileName(path)}  ·  {Path.GetDirectoryName(path)}"
-            : Path.GetFileName(path)).ToArray();
+        var result = new string[files.Length];
+        var groups = files.Select((path, index) => (Path: path, Index: index, Name: Path.GetFileName(path) ?? path))
+            .GroupBy(item => item.Name, StringComparer.OrdinalIgnoreCase);
+        foreach (var group in groups)
+        {
+            var entries = group.ToArray();
+            if (entries.Length == 1) { result[entries[0].Index] = entries[0].Name; continue; }
+            var parentParts = entries.Select(entry => (entry.Index, Parts: (Path.GetDirectoryName(entry.Path) ?? "").Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))).ToArray();
+            var depth = 1;
+            for (; depth <= parentParts.Max(item => item.Parts.Length); depth++)
+            {
+                var suffixes = parentParts.Select(item => string.Join(Path.DirectorySeparatorChar.ToString(), item.Parts.TakeLast(depth))).ToArray();
+                if (suffixes.Distinct(StringComparer.OrdinalIgnoreCase).Count() == entries.Length) break;
+            }
+            foreach (var item in parentParts)
+            {
+                var suffix = string.Join(Path.DirectorySeparatorChar.ToString(), item.Parts.TakeLast(Math.Min(depth, item.Parts.Length)));
+                result[item.Index] = $"{Path.GetFileName(files[item.Index]) ?? files[item.Index]}  ·  {suffix}";
+            }
+        }
+        return result;
     }
     private static string SafeFullPath(string? path) { try { return string.IsNullOrWhiteSpace(path) ? "" : Path.GetFullPath(path); } catch { return ""; } }
 

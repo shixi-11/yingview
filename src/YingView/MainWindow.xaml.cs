@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Reflection;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -41,6 +42,7 @@ public partial class MainWindow : Window
     private StoreBillingService? _billing;
     private WindowState _previousState;
     private string? _error;
+    private bool _currentFileMissing;
     private string T(string zh, string en) => _settings.Language == "zh" ? zh : en;
     internal bool IsChinese => _settings.Language == "zh";
 
@@ -69,7 +71,11 @@ public partial class MainWindow : Window
             if (paths.Length > 0) await OpenPaths(paths);
             Surface.Focus();
         };
-        Closing += (_, _) => { _slideshow.Stop(); _settings.Save(); };
+        Closing += (_, _) =>
+        {
+            _slideshow.Stop(); _toastTimer.Stop(); ++_generation; ++_thumbGeneration; ++_openGeneration;
+            Surface.SetDocument(null, DefaultFit); _settings.Save();
+        };
     }
 
     private void ApplyLanguage()
@@ -148,7 +154,9 @@ public partial class MainWindow : Window
         MoreMenu.Items.Add(Item(T("复制路径", "Copy file path") + "    Ctrl+Shift+C", CopyPath));
         MoreMenu.Items.Add(Item(T("在文件夹中显示", "Show in folder") + "    Ctrl+E", ShowInFolder));
         MoreMenu.Items.Add(Item(T("粘贴图片", "Paste image") + "    Ctrl+V", async () => await PasteImage()));
-        MoreMenu.Items.Add(Item(T("移入回收站", "Move to Recycle Bin") + "    Delete", async () => await DeleteCurrent()));
+        var deleteItem = Item(T("移入回收站", "Move to Recycle Bin") + "    Delete", async () => await DeleteCurrent());
+        deleteItem.IsEnabled = _current is not null && !_loading && !_deleting && !_currentFileMissing;
+        MoreMenu.Items.Add(deleteItem);
         MoreMenu.Items.Add(new Separator());
         MoreMenu.Items.Add(Item(T("对照审阅…", "Compare & review…") + "    V", OpenReview));
         MoreMenu.Items.Add(Item(T("个人风格与专业版", "Personal styles & Pro"), ShowPlans));
@@ -156,7 +164,7 @@ public partial class MainWindow : Window
         MoreMenu.Items.Add(Item(T("快捷键", "Keyboard shortcuts") + "    F1", ShowHelp));
         MoreMenu.Items.Add(Item(T("许可信息", "Licenses"), ShowLicenses));
         MoreMenu.Items.Add(Item(T("关于映窗", "About YingView"), () => MessageBox.Show(this,
-            T("映窗 0.2.0 预览版\n由光之十一开发\n\n本地查看，无广告，无图片上传。\n源码：github.com/shixi-11/yingview", "YingView 0.2.0 Preview\nCreated by Shixi Lin\n\nLocal viewing. No ads. No image uploads.\nSource: github.com/shixi-11/yingview"), T("关于映窗", "About YingView"))));
+            T($"映窗 {DisplayVersion} 预览版\n由光之十一开发\n\n本地查看，无广告，无图片上传。\n源码：github.com/shixi-11/yingview", $"YingView {DisplayVersion} Preview\nCreated by Shixi Lin\n\nLocal viewing. No ads. No image uploads.\nSource: github.com/shixi-11/yingview"), T("关于映窗", "About YingView"))));
     }
     private void ShowLicenses()
     {
@@ -173,6 +181,9 @@ public partial class MainWindow : Window
         new Window { Owner = this, Title = T("许可信息", "Licenses"), Width = 760, Height = 580, MinWidth = 400, MinHeight = 300, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = text }.ShowDialog();
     }
     private void SetLanguage(string language) { _settings.Language = language; ApplyLanguage(); InitializeBilling(); SaveSettings(); }
+    private static string DisplayVersion => typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
+        ?? typeof(MainWindow).Assembly.GetName().Version?.ToString(3)
+        ?? "";
     private ViewportFitMode DefaultFit => ViewportFitMode.Contain;
     private void SaveSettings() { if (!_settings.Save()) ShowToast(T("偏好设置暂时无法保存", "Preferences could not be saved")); }
     private void ApplyTheme(ViewerTheme theme)
@@ -233,6 +244,9 @@ public partial class MainWindow : Window
     {
         if (paths.Length == 0 || _deleting) return;
         var openGeneration = ++_openGeneration;
+        ++_generation; // A slow decode for the previous selection must not overwrite this open request.
+        _loading = false;
+        UpdateStatus();
         try
         {
             var first = Path.GetFullPath(paths[0]);
@@ -246,7 +260,7 @@ public partial class MainWindow : Window
             else if (paths.Length == 1 && ImageLoader.Supports(first))
             {
                 files = await Task.Run(() => Directory.EnumerateFiles(Path.GetDirectoryName(first)!).Where(ImageLoader.Supports).OrderBy(Path.GetFileName, NaturalStringComparer.Ordinal).ToArray());
-                select = first;
+                select = files.FirstOrDefault(p => string.Equals(p, first, StringComparison.OrdinalIgnoreCase));
             }
             else
             {
@@ -254,13 +268,36 @@ public partial class MainWindow : Window
                 select = files.FirstOrDefault();
             }
             if (openGeneration != _openGeneration) return;
-            if (files.Length == 0 || select is null) { ShowToast(T("这里没有支持的图片", "No supported images found here")); return; }
+            if (files.Length == 0)
+            {
+                ShowEmptyState(T("没有找到支持的图片", "No supported images found"), T("请选择其他文件夹，或拖入图片。", "Choose another folder or drop an image here."));
+                return;
+            }
+            if (select is null)
+            {
+                ShowEmptyState(T("图片已不存在", "Image no longer exists"), T("文件可能已被移动或删除。请打开所在文件夹，或重新选择图片。", "The file may have been moved or deleted. Open its folder or choose another image."));
+                return;
+            }
             _files = files; _index = Array.FindIndex(files, x => string.Equals(x, select, StringComparison.OrdinalIgnoreCase));
             if (_index < 0) _index = 0;
             _slideshow.Stop(); await LoadCurrent();
             if (_settings.FullscreenOnOpen && !_fullscreen) ToggleFullscreen();
         }
-        catch { ShowToast(T("无法打开，请检查文件是否仍存在，以及文件夹访问权限。", "Could not open. Check that the files still exist and that the folder is accessible.")); }
+        catch
+        {
+            if (openGeneration != _openGeneration) return;
+            ShowEmptyState(T("无法打开此位置", "Could not open this location"), T("请检查文件或文件夹是否仍存在，以及访问权限。", "Check that the file or folder still exists and that you have access."));
+            ShowToast(T("无法打开，请检查文件或文件夹是否仍存在，以及访问权限。", "Could not open it. Check that the file or folder still exists and that you have access."));
+        }
+    }
+    private void ShowEmptyState(string title, string subtitle)
+    {
+        Toast.Visibility = Visibility.Collapsed; _toastTimer.Stop();
+        ++_generation; ++_thumbGeneration;
+        _files = []; _index = -1; _current = null; _loading = false; _currentFileMissing = false; _error = null;
+        _slideshow.Stop(); Surface.SetDocument(null, DefaultFit); Thumbnails.Children.Clear();
+        EmptyPanel.Visibility = Visibility.Visible; EmptyTitle.Text = title; EmptySubtitle.Text = subtitle;
+        Title = ClientBranding.DisplayName(_settings.Language); BuildMenu(); UpdateStatus(); Surface.Focus();
     }
     private async Task Navigate(int direction)
     {
@@ -270,12 +307,15 @@ public partial class MainWindow : Window
     private async Task LoadCurrent()
     {
         if (_index < 0 || _index >= _files.Length) return;
+        Toast.Visibility = Visibility.Collapsed; _toastTimer.Stop();
         var path = _files[_index]; var generation = ++_generation;
         _current = path; _loading = true; _error = null;
+        _currentFileMissing = false;
         Title = Path.GetFileName(path) + " · " + T("映窗", "YingView");
         UpdateStatus(); _ = BuildThumbnails();
         try
         {
+            if (!File.Exists(path)) throw new FileNotFoundException("Image file no longer exists.", path);
             ImageDocument? doc;
             if (!_cache.TryGetValue(path, out doc))
             {
@@ -299,9 +339,12 @@ public partial class MainWindow : Window
         {
             if (generation != _generation) return;
             _error = T("图片无法打开，可能格式不受支持或文件已损坏。", "This image could not be opened. Its format may be unsupported or the file may be damaged."); Surface.SetDocument(null, DefaultFit);
+            _currentFileMissing = !File.Exists(path);
             EmptyPanel.Visibility = Visibility.Visible;
             EmptyTitle.Text = T("这张图片暂时无法打开", "This image could not be opened");
-            EmptySubtitle.Text = T("可按方向键继续看下一张，或重新选择图片", "Use the arrow keys for another image, or choose a different file.");
+            EmptySubtitle.Text = _currentFileMissing
+                ? T("文件可能已被移动或删除。按 F5 重新读取当前文件夹。", "The file may have been moved or deleted. Press F5 to reload the folder.")
+                : T("可按方向键继续看下一张，或重新选择图片", "Use the arrow keys for another image, or choose a different file.");
             ShowToast(_error);
         }
         finally
@@ -360,9 +403,9 @@ public partial class MainWindow : Window
         var counter = _files.Length > 0 ? $"{_index + 1} / {_files.Length}     " : "";
         DetailsLabel.Text = _loading ? T("正在打开…", "Opening…") : doc is null ? "" : counter + $"{doc.Width:N0} × {doc.Height:N0}     {doc.Format}" + (doc.Frames.Count > 1 ? $"     {doc.Frames.Count} " + T("帧", "frames") : "");
         ZoomLabel.Text = doc is null ? "—" : $"{Surface.View.Scale * Surface.View.DpiScale * 100:0.#}%";
-        PreviousButton.IsEnabled = NextButton.IsEnabled = _files.Length > 1;
+        PreviousButton.IsEnabled = NextButton.IsEnabled = _files.Length > 1 && !_deleting;
         foreach (var button in new[] { FitButton, ActualButton, ZoomInButton, ZoomOutButton, RotateButton }) button.IsEnabled = doc is not null;
-        DeleteButton.IsEnabled = _current is not null && !_loading && !_deleting;
+        DeleteButton.IsEnabled = _current is not null && !_loading && !_deleting && !_currentFileMissing;
         FitButton.Background = doc is not null && !Surface.View.HasManualZoom && Surface.View.FitMode == ViewportFitMode.Contain ? (Brush)Application.Current.Resources["HoverBrush"] : Brushes.Transparent;
         if (_loading) InfoText.Text = T("正在打开…", "Opening…");
         else if (doc is not null)
@@ -479,7 +522,7 @@ public partial class MainWindow : Window
         catch (NotSupportedException) { ShowToast(T("这个位置不支持回收站，图片已保留。请在文件夹中处理。", "This location does not support the Recycle Bin. The image was kept. Manage it in its folder.")); }
         catch (FileNotFoundException) { ShowToast(T("图片已被移动或删除，按 F5 刷新文件夹", "This image has been moved or deleted. Press F5 to refresh.")); }
         catch { ShowToast(T("未能移入回收站，图片已保留。请检查文件权限或是否正被占用。", "Could not move this image to the Recycle Bin. Check permissions or whether another app is using it.")); }
-        finally { _deleting = false; UpdateStatus(); Surface.Focus(); }
+        finally { _deleting = false; UpdateStatus(); BuildMenu(); Surface.Focus(); }
     }
     private void ToggleFullscreen()
     {
@@ -518,6 +561,7 @@ public partial class MainWindow : Window
     }
     private async Task PasteImage()
     {
+        if (_deleting) return;
         try
         {
             if (Clipboard.ContainsFileDropList()) { await OpenPaths(Clipboard.GetFileDropList().Cast<string>().ToArray()); return; }
@@ -539,8 +583,10 @@ public partial class MainWindow : Window
         T("Ctrl+O  打开图片\nCtrl+Shift+O  打开文件夹\n← / →  上一张 / 下一张\n滚轮  围绕鼠标缩放\n拖动  移动画面\nF / 0  完整显示并自动放大\n1  原始像素\n+ / −  放大 / 缩小\nR  旋转    H  镜像\nB  切换透明背景\nDelete / Del  移入回收站\nV  对照审阅\nT  缩略图    I  图片信息\nP  幻灯片    空格  暂停动图\nF11 / 双击  全屏\nTab  隐藏工具栏\nEsc  退出全屏 / 关闭信息\nCtrl+C  复制原图\nCtrl+Shift+C  复制路径\nCtrl+V  粘贴图片\nCtrl+E  在文件夹中显示\nF5  重新载入", "Ctrl+O  Open images\nCtrl+Shift+O  Open folder\n← / →  Previous / next image\nMouse wheel  Zoom around pointer\nDrag  Pan\nF / 0  Enlarge to fit\n1  Actual pixels\n+ / −  Zoom in / out\nR  Rotate    H  Mirror\nB  Cycle transparency background\nDelete / Del  Move to Recycle Bin\nV  Compare & review\nT  Thumbnails    I  Image info\nP  Slideshow    Space  Pause animation\nF11 / Double-click  Fullscreen\nTab  Hide toolbars\nEsc  Leave fullscreen / close info\nCtrl+C  Copy original image\nCtrl+Shift+C  Copy file path\nCtrl+V  Paste image\nCtrl+E  Show in folder\nF5  Reload"), T("快捷键", "Keyboard shortcuts"));
     private async void KeyPressed(object sender, KeyEventArgs e)
     {
-        if (MoreMenu.IsSubmenuOpen) return;
-        if (e.OriginalSource is TextBox) return;
+        // Preserve native keyboard handling and prevent accidental deletion while
+        // focus is on toolbar/menu controls rather than the image canvas.
+        if (MoreMenu.IsSubmenuOpen || Keyboard.FocusedElement is TextBox || e.OriginalSource is TextBox) return;
+        if ((Keyboard.Modifiers & (ModifierKeys.Alt | ModifierKeys.Windows)) != 0) return;
         bool ctrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control); bool shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
         if (ctrl)
         {
@@ -554,6 +600,8 @@ public partial class MainWindow : Window
             }
             e.Handled = true; return;
         }
+        if ((Keyboard.FocusedElement is Control and not Window || e.OriginalSource is Control and not Window)
+            && e.Key is not (Key.Escape or Key.F11 or Key.F1 or Key.F5)) return;
         switch (e.Key)
         {
             case Key.Right: case Key.PageDown: await Navigate(1); break;
@@ -581,9 +629,17 @@ public partial class MainWindow : Window
                 if (_fullscreen) ToggleFullscreen(); else if (_chromeHidden) { _chromeHidden = false; ApplyChrome(); }
                 else InfoPanel.Visibility = Visibility.Collapsed; _slideshow.Stop(); break;
             case Key.F1: ShowHelp(); break;
-            case Key.F5: if (_current is not null) { _cache.Remove(_current); _cacheOrder.Remove(_current); await OpenPaths([_current]); } break;
+            case Key.F5: await ReloadCurrent(); break;
             default: return;
         }
         e.Handled = true;
+    }
+    private async Task ReloadCurrent()
+    {
+        if (_current is null || _deleting) return;
+        var path = _current;
+        _cache.Remove(path); _cacheOrder.Remove(path);
+        var directory = Path.GetDirectoryName(path);
+        await OpenPaths([File.Exists(path) || !Directory.Exists(directory) ? path : directory!]);
     }
 }

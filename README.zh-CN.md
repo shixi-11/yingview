@@ -2,7 +2,7 @@
 
 映窗是一款面向 Windows 10 和 11 的本地图片查看器。打开图片或拖入文件夹，就能在宽阔、清爽的窗口里浏览。应用使用 .NET 10 与 WPF 构建，图片解码由 Magick.NET 15 提供。下载简体中文版本会使用“映窗”名称和中文界面；下载英文版本则使用 YingView 名称和英文界面。
 
-**版本：**0.2.0 Preview · **架构：**x64
+**版本：**0.3.0 预览版 · **架构：**x64
 
 [English](README.md) · [从 GitHub Releases 下载](https://github.com/shixi-11/yingview/releases) · [主题说明](docs/themes.md)
 
@@ -16,6 +16,8 @@
 - 动图受200帧、解码帧总量256 MiB和单张图片1亿像素限制。TIFF文件打开第一页。
 - 提供四种内置风格、即时配色与文字大小调整、紧凑工具栏，以及免费导入和导出 JSON 主题。简体中文版本使用中文界面，英文版本使用英文界面；其他语言使用英文。
 
+外观编辑器现在提供主题预览卡片、颜色选项和文字预览，对照窗口也会跟随界面字号调整。打开空文件夹、损坏文件或已移动的图片时，会清除之前的选择并提供恢复提示；按 **F5** 可刷新当前图片，文件已移动时会重新读取所在文件夹。
+
 解码器已配置处理 PNG、JPEG、GIF、WebP、AVIF、BMP、TIFF、ICO、HEIC 和 HEIF 扩展名。能否打开取决于文件编码与内容；HEIC 和 HEIF 在此版本中尚未验证。
 
 ## 图片处理与隐私
@@ -24,7 +26,7 @@
 
 ## 下载与构建
 
-本项目介绍的是面向 Windows x64 的 0.2.0 Preview。当前可下载的构建版本请查看 [GitHub Releases](https://github.com/shixi-11/yingview/releases)。Microsoft Store 提交尚未进行。
+本仓库包含面向 Windows x64 的 0.3.0 预览版源码。当前可下载的版本请以 [GitHub Releases](https://github.com/shixi-11/yingview/releases) 标注为准，源码更新不会自动发布新的下载文件。Microsoft Store 提交尚未进行。
 
 请按偏好选择对应语言的下载文件。所选版本也决定应用名称、图标和安装后的快捷方式语言。
 

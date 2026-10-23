@@ -2,7 +2,7 @@
 
 YingView includes four appearance presets: Obsidian, Paper, Moss, and Iris. Open **More → Appearance** to choose a preset or import and export a theme as JSON.
 
-The appearance editor previews changes as you make them. Choose a color area and click a color swatch; the advanced section also accepts a six-digit `#RRGGBB` color. You can rename the current theme, adjust interface text size from 85% to 130%, and turn on a compact toolbar. **Apply** saves these settings. **Cancel** restores the appearance from before the editor opened, and **Reset** returns to the default preset and layout settings.
+The appearance editor previews changes as you make them. Choose a visual preset, select an area of the interface, and click a color swatch. You can also enter a six-digit `#RRGGBB` color and click **Use**, or open **Custom…** for more colors. Rename the theme, adjust interface text size from 85% to 130%, and turn on a compact toolbar. **Apply** saves these settings. **Cancel** restores the appearance from before the editor opened, and **Reset** returns to the default preset and layout settings.
 
 JSON theme import and export are available in the current version. A theme file has exactly seven fields:
 
