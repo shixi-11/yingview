@@ -160,11 +160,16 @@ public partial class MainWindow : Window
         MoreMenu.Items.Add(new Separator());
         MoreMenu.Items.Add(Item(T("对照审阅…", "Compare & review…") + "    V", OpenReview));
         MoreMenu.Items.Add(Item(T("个人风格与专业版", "Personal styles & Pro"), ShowPlans));
+        MoreMenu.Items.Add(Item(T("设为默认看图软件…", "Set as default image viewer…"), OpenDefaultSettings));
         MoreMenu.Items.Add(new Separator());
         MoreMenu.Items.Add(Item(T("快捷键", "Keyboard shortcuts") + "    F1", ShowHelp));
         MoreMenu.Items.Add(Item(T("许可信息", "Licenses"), ShowLicenses));
         MoreMenu.Items.Add(Item(T("关于映窗", "About YingView"), () => MessageBox.Show(this,
             T($"映窗 {DisplayVersion} 预览版\n由光之十一开发\n\n本地查看，无广告，无图片上传。\n源码：github.com/shixi-11/yingview", $"YingView {DisplayVersion} Preview\nCreated by Shixi Lin\n\nLocal viewing. No ads. No image uploads.\nSource: github.com/shixi-11/yingview"), T("关于映窗", "About YingView"))));
+    }
+    private void OpenDefaultSettings()
+    {
+        new DefaultAppsWindow(_settings.Language) { Owner = this }.ShowDialog();
     }
     private void ShowLicenses()
     {

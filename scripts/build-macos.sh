@@ -7,7 +7,7 @@ SOURCE="$(git -C "$ROOT" rev-parse HEAD)"
 swift test --package-path "$PACKAGE"
 swift build --package-path "$PACKAGE" -c release --arch arm64 --arch x86_64
 BIN="$(swift build --package-path "$PACKAGE" -c release --arch arm64 --arch x86_64 --show-bin-path)"
-lipo -verify_arch arm64 x86_64 "$BIN/YingView"
+lipo "$BIN/YingView" -verify_arch arm64 x86_64
 for LANGUAGE in zh-CN en-US; do
   NAME="YingView"; [ "$LANGUAGE" != zh-CN ] || NAME="映窗"
   DEST="$ROOT/dist/macOS-$LANGUAGE"

@@ -11,6 +11,7 @@ using System.Windows.Threading;
 using YingView;
 using YingView.Core;
 using YingView.Review;
+using YingView.Files;
 
 internal static class Program
 {
@@ -19,6 +20,7 @@ internal static class Program
     [STAThread]
     private static int Main()
     {
+        VerifyDefaultAppPlan();
         if (string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase))
         {
             Check(ClientBranding.ResolveLanguage("zh-CN", "en-US") == "zh", "Chinese download must retain Chinese branding.");
@@ -86,6 +88,7 @@ internal static class Program
                 }
                 VerifyStyleCancel(settings);
                 VerifyStyleApply();
+                VerifyDefaultAppsWindow();
                 // The representative UI captures above are rendered before any delete operation.
             }
             finally
@@ -102,6 +105,26 @@ internal static class Program
             File.WriteAllText(Path.Combine(Output, "result.txt"), "FAIL\n" + ex);
             return 1;
         }
+    }
+
+    private static void VerifyDefaultAppPlan()
+    {
+        var plan = DefaultAppService.CreateRegistrationPlan("zh", Path.GetFullPath("YingView.exe"));
+        Check(plan.DisplayName == "映窗" && plan.ProgId == "YingView.zh-CN" && plan.Extensions.Contains(".png") && !plan.Extensions.Contains(".heic"), "Default app registration must follow localized branding and verified formats.");
+        Check(DefaultAppService.BuildSettingsUri("映窗") == "ms-settings:defaultapps?registeredAppUser=%E6%98%A0%E7%AA%97", "The system settings deep link must encode the real localized registration name.");
+        Check(DefaultAppService.BuildSettingsUri("RealPackage!YingView", "registeredAUMID").Contains("registeredAUMID="), "Packaged clients must target their real application identity.");
+    }
+
+    private static void VerifyDefaultAppsWindow()
+    {
+        var before = DefaultAppService.GetAssociations("zh");
+        Check(before.Count == 10 && before.Any(a => a.ProgId is not null), "Read-only status must query effective Windows associations through the native API.");
+        var dialog = new DefaultAppsWindow("zh");
+        SaveWindowContentReviewPng(dialog, "default-apps-zh.png", 520, 540);
+        dialog.Close();
+        var after = DefaultAppService.GetAssociations("zh");
+        Check(before.SequenceEqual(after), "Opening or refreshing status must not silently change user defaults.");
+        File.WriteAllText(Path.Combine(Output, "default-associations.json"), System.Text.Json.JsonSerializer.Serialize(after));
     }
 
     private static void VerifyClientLanguageBranding(MainWindow englishWindow, Preferences englishSettings)

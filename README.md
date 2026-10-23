@@ -18,6 +18,12 @@ YingView is a local-first image viewer for Windows 10 and 11. Open a picture or 
 
 The appearance editor now shows visual preset cards, color swatches, and a live text preview. Comparison controls follow the interface text-size setting. Empty folders, damaged files, and externally moved images clear the previous selection and offer a way to recover; **F5** refreshes the selected image or reopens its folder when it has moved.
 
+Choose **More → Set as default image viewer** to check each format's effective association and open Windows Settings to confirm your choice. Opening the settings page is reported separately from successfully changing an association.
+
+## macOS preview
+
+The native client in `src/YingView.macOS` uses SwiftUI, AppKit, and the system ImageIO decoder on macOS 13 or later. It includes contain fit, physical-pixel 100%, navigation, zoom, rotation, Trash, a collapsible filmstrip, basic side-by-side viewing, and appearance settings. The build script produces separate Chinese and English apps with Apple silicon and Intel architectures. Developer ID signing and notarization remain pending; it has not been submitted to the Mac App Store.
+
 The decoder is configured for PNG, JPEG, GIF, WebP, AVIF, BMP, TIFF, ICO, HEIC, and HEIF extensions. Support depends on each file's encoding and contents. HEIC and HEIF have not been verified in this release.
 
 ## Image handling and privacy
