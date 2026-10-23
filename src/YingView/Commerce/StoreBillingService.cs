@@ -266,16 +266,16 @@ public sealed class StoreBillingService
 
     private string Text(string zh, string en) => _isZh ? zh : en;
     private string StoreUnavailableMessage() => _verifiedHasPro == true
-        ? Text("Pro 已启用；暂时无法更新 Microsoft Store 信息。", "Pro remains active; Microsoft Store information could not be refreshed.")
+        ? Text("专业版已启用；暂时无法更新 Microsoft Store 信息。", "Pro remains active; Microsoft Store information could not be refreshed.")
         : Text("暂时无法连接 Microsoft Store，请检查网络后重试。", "Microsoft Store is unavailable. Check your connection and try again.");
     private string RestoreUnavailableMessage() => Text("暂时无法查询购买记录，请稍后重试。", "Purchases could not be checked. Please try again later.");
-    private string ProductUnavailableMessage() => Text("暂时无法确认 Pro 商品及价格，购买功能当前不可用。", "The Pro product and price could not be confirmed. Purchasing is unavailable.");
+    private string ProductUnavailableMessage() => Text("暂时无法确认专业版商品及价格，购买功能当前不可用。", "The Pro product and price could not be confirmed. Purchasing is unavailable.");
     private string ReadyMessage() => Text("可通过 Microsoft Store 购买。", "Ready to purchase through Microsoft Store.");
-    private string ProActiveMessage() => Text("Pro 已启用。", "Pro is active.");
+    private string ProActiveMessage() => Text("专业版已启用。", "Pro is active.");
     private string PurchasePendingMessage() => Text("Microsoft Store 正在确认购买授权，请稍后重新查询。", "Microsoft Store is confirming the purchase. Check again shortly.");
     private string PurchaseNotCompletedMessage() => Text("购买未完成，可能已取消。", "The purchase did not complete. It may have been canceled.");
     private string PurchaseFailedMessage() => Text("购买未完成，请检查订单记录后再试。", "Purchase did not complete. Check your order history before trying again.");
-    private string RestoreNotFoundMessage() => Text("未找到此 Microsoft Store 账号的 Pro 授权。", "No Pro license was found for this Microsoft Store account.");
+    private string RestoreNotFoundMessage() => Text("未找到此 Microsoft Store 账号的专业版授权。", "No Pro license was found for this Microsoft Store account.");
 
     private static bool HasPackageIdentity()
     {

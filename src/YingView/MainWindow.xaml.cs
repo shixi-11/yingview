@@ -200,7 +200,7 @@ public partial class MainWindow : Window
     }
     private void ImportTheme()
     {
-        var dialog = new OpenFileDialog { Filter = "YingView theme (*.json)|*.json", Title = T("导入主题", "Import theme") };
+        var dialog = new OpenFileDialog { Filter = T("映窗主题 (*.json)|*.json", "YingView theme (*.json)|*.json"), Title = T("导入主题", "Import theme") };
         if (dialog.ShowDialog(this) != true) return;
         try
         {
@@ -212,7 +212,7 @@ public partial class MainWindow : Window
     }
     private void ExportTheme()
     {
-        var dialog = new SaveFileDialog { Filter = "YingView theme (*.json)|*.json", FileName = "YingView-theme.json", Title = T("导出主题", "Export theme") };
+        var dialog = new SaveFileDialog { Filter = T("映窗主题 (*.json)|*.json", "YingView theme (*.json)|*.json"), FileName = T("映窗主题.json", "YingView-theme.json"), Title = T("导出主题", "Export theme") };
         if (dialog.ShowDialog(this) != true) return;
         try { File.WriteAllText(dialog.FileName, JsonSerializer.Serialize(_settings.Theme, new JsonSerializerOptions { WriteIndented = true })); ShowToast(T("主题已导出", "Theme exported")); }
         catch (Exception ex) { ShowToast(T("无法导出：", "Could not export: ") + ex.Message); }
