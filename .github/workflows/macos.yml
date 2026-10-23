@@ -1,0 +1,47 @@
+name: macOS client
+on:
+  push:
+    branches: [main]
+    paths: ['src/YingView.macOS/**', 'scripts/build-macos.sh', '.github/workflows/macos.yml', 'src/YingView/Assets/**']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: macos-client
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test both architectures and languages
+        run: bash scripts/build-macos.sh
+      - name: Run isolated native image smoke checks
+        run: |
+          mkdir -p output/mac-tests
+          export YINGVIEW_SMOKE_OUTPUT="$PWD/output/mac-tests"
+          python3 - <<'PY'
+          import subprocess,os
+          for language,name in [('zh-CN','映窗'),('en-US','YingView')]:
+              env=dict(os.environ,YINGVIEW_SMOKE_OUTPUT=os.path.abspath('output/mac-tests/'+language))
+              subprocess.run(['dist/macOS-'+language+'/'+name+'.app/Contents/MacOS/YingView','--smoke-test'],env=env,check=True,timeout=90)
+          PY
+      - name: Save installer images in an unpublished release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=v0.3.0-macos-preview.1
+          printf '%s\n' 'macOS local preview. Universal Intel/Apple silicon, Chinese and English clients. Ad-hoc signed, not Developer ID signed or notarized. Not submitted to the Mac App Store.' > output/mac-notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            DRAFT="$(gh release view "$TAG" --json isDraft --jq .isDraft)"
+            [ "$DRAFT" = true ] || { echo 'Refusing to replace a public release'; exit 1; }
+            gh release edit "$TAG" --target "$GITHUB_SHA" --notes-file output/mac-notes.md
+          else
+            gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" --title 'YingView macOS 0.3.0 Preview' --notes-file output/mac-notes.md
+          fi
+          cp dist/macOS-zh-CN/映窗.dmg output/映窗-macOS.dmg
+          cp dist/macOS-en-US/YingView.dmg output/YingView-macOS.dmg
+          gh release upload "$TAG" output/映窗-macOS.dmg output/YingView-macOS.dmg --clobber
+          find output/mac-tests -type f -name '*.png' -exec sh -c 'for f do cp "$f" "output/mac-$(basename "$(dirname "$f")")-$(basename "$f")"; done' sh {} +
+          for f in output/mac-*.png; do [ ! -f "$f" ] || gh release upload "$TAG" "$f" --clobber; done

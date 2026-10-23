@@ -9,6 +9,7 @@ output/
 *.pfx
 *.snk
 .DS_Store
+**/.build/
 docs/商业化与发布.md
 docs/市场与产品策略.md
 docs/客户与运营方案.md
