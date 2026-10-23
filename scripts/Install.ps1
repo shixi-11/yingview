@@ -38,7 +38,7 @@ New-Item -Path "$key\DefaultIcon" -Force | Out-Null
 Set-Item -Path "$key\DefaultIcon" -Value ('"' + $installed + '",0')
 New-Item -Path "$key\shell\open\command" -Force | Out-Null
 Set-Item -Path "$key\shell\open\command" -Value ('"' + $installed + '" "%1"')
-$appKey = "HKCU:\Software\Classes\Applications\YingView-$language.exe"
+$appKey = 'HKCU:\Software\Classes\Applications\YingView.exe'
 New-Item -Path $appKey -Force | Out-Null
 New-ItemProperty -Path $appKey -Name 'FriendlyAppName' -Value $displayName -PropertyType String -Force | Out-Null
 New-Item -Path "$appKey\DefaultIcon" -Force | Out-Null
@@ -56,6 +56,7 @@ $capabilityPath = "Software\YingView\$language\Capabilities"
 $capabilities = "HKCU:\$capabilityPath"
 New-Item -Path "$capabilities\FileAssociations" -Force | Out-Null
 New-ItemProperty -Path $capabilities -Name ApplicationName -Value $displayName -PropertyType String -Force | Out-Null
+New-ItemProperty -Path $capabilities -Name ApplicationIcon -Value ('"' + $installed + '",0') -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $capabilities -Name ApplicationDescription -Value $(if ($language -eq 'zh-CN') { '本地图片查看与对照审阅' } else { 'Local image viewing and comparison' }) -PropertyType String -Force | Out-Null
 foreach ($ext in @('.png','.jpg','.jpeg','.gif','.webp','.avif','.bmp','.tif','.tiff','.ico','.heic','.heif')) {
     New-ItemProperty -Path "$capabilities\FileAssociations" -Name $ext -Value "YingView.$language" -PropertyType String -Force | Out-Null

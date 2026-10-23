@@ -108,8 +108,8 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
         explicitSelection = false
         do {
             files = try scan(folder!)
-            if !directory && !files.contains(url) { files.append(url); files = ViewerLogic.naturalSort(files) }
-            index = files.firstIndex(of: url) ?? 0
+            if !directory && !files.contains(where: { ViewerLogic.sameFile($0, url) }) { files.append(url.standardizedFileURL); files = ViewerLogic.naturalSort(files) }
+            index = files.firstIndex(where: { ViewerLogic.sameFile($0, url) }) ?? 0
             select(index)
         } catch {
             files = []; index = 0; select(0)
@@ -119,16 +119,16 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
     private func scan(_ folder: URL) throws -> [URL] {
         ViewerLogic.naturalSort(try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]).filter {
             ImageDecoder.extensions.contains($0.pathExtension.lowercased()) && (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
-        })
+        }.map(\.standardizedFileURL))
     }
     func refresh() {
         let selected = current; let oldIndex = index
         if explicitSelection {
             files = files.filter { FileManager.default.fileExists(atPath: $0.path) }
-            select(selected.flatMap { files.firstIndex(of: $0) } ?? min(oldIndex, max(files.count - 1, 0)))
+            select(selected.flatMap { previous in files.firstIndex(where: { ViewerLogic.sameFile($0, previous) }) } ?? min(oldIndex, max(files.count - 1, 0)))
         } else if let folder {
             open(folder)
-            select(selected.flatMap { files.firstIndex(of: $0) } ?? min(oldIndex, max(files.count - 1, 0)))
+            select(selected.flatMap { previous in files.firstIndex(where: { ViewerLogic.sameFile($0, previous) }) } ?? min(oldIndex, max(files.count - 1, 0)))
         }
     }
     func chooseImages() {

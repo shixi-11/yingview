@@ -1,6 +1,12 @@
 import Foundation
 
 public enum ViewerLogic {
+    /// FileManager enumeration and file-open events can use different URL bases
+    /// or /var versus /private/var spellings for the same macOS file.
+    public static func sameFile(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.standardizedFileURL.resolvingSymlinksInPath().path == rhs.standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
     public static func containScale(imageWidth: Double, imageHeight: Double, viewWidth: Double, viewHeight: Double, quarterTurns: Int = 0) -> Double {
         guard imageWidth.isFinite, imageHeight.isFinite, viewWidth.isFinite, viewHeight.isFinite,
               imageWidth > 0, imageHeight > 0, viewWidth > 0, viewHeight > 0 else { return 1 }

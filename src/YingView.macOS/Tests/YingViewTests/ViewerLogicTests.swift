@@ -2,6 +2,20 @@ import XCTest
 import YingViewCore
 
 final class ViewerLogicTests: XCTestCase {
+    func testFileIdentityNormalizesURLBasesAndDirectorySymlinks() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("YingViewIdentity-\(UUID().uuidString)", isDirectory: true)
+        let directory = root.appendingPathComponent("actual", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = directory.appendingPathComponent("frame1.png")
+        try Data([0]).write(to: file)
+        let alias = root.appendingPathComponent("alias", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: directory)
+        let relative = URL(string: "frame1.png", relativeTo: directory)!
+        XCTAssertTrue(ViewerLogic.sameFile(file, relative))
+        XCTAssertTrue(ViewerLogic.sameFile(file, alias.appendingPathComponent("frame1.png")))
+        XCTAssertFalse(ViewerLogic.sameFile(file, directory.appendingPathComponent("frame2.png")))
+    }
     func testContainFitsWholeImageAndEnlargesSmallImage() {
         XCTAssertEqual(ViewerLogic.containScale(imageWidth: 4000, imageHeight: 2000, viewWidth: 1000, viewHeight: 800), 0.25)
         XCTAssertEqual(ViewerLogic.containScale(imageWidth: 100, imageHeight: 50, viewWidth: 1000, viewHeight: 800), 10)

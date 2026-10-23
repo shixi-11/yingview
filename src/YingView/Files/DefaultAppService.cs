@@ -89,7 +89,7 @@ public static class DefaultAppService
             command.SetValue("", $"\"{plan.ExecutablePath}\" \"%1\"", RegistryValueKind.String);
         }
 
-        using (var app = classes.CreateSubKey($@"Applications\YingView-{plan.Language}.exe", true)!)
+        using (var app = classes.CreateSubKey($@"Applications\{Path.GetFileName(plan.ExecutablePath)}", true)!)
         {
             app.SetValue("FriendlyAppName", plan.DisplayName, RegistryValueKind.String);
             using var supported = app.CreateSubKey("SupportedTypes", true)!;
@@ -103,6 +103,7 @@ public static class DefaultAppService
         using (var capabilities = Registry.CurrentUser.CreateSubKey(plan.CapabilitiesPath, true)!)
         {
             capabilities.SetValue("ApplicationName", plan.DisplayName, RegistryValueKind.String);
+            capabilities.SetValue("ApplicationIcon", $"\"{plan.ExecutablePath}\",0", RegistryValueKind.String);
             capabilities.SetValue("ApplicationDescription", plan.Language == "zh-CN" ? "本地图片查看与对照审阅" : "Local image viewing and comparison", RegistryValueKind.String);
             using var fileAssociations = capabilities.CreateSubKey("FileAssociations", true)!;
             foreach (var extension in plan.Extensions) fileAssociations.SetValue(extension, plan.ProgId, RegistryValueKind.String);
