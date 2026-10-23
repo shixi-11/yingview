@@ -7,23 +7,40 @@ namespace YingView;
 
 public sealed class Preferences
 {
-    public string Language { get; set; } = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "zh" ? "zh" : "en";
+    private readonly string? _storagePath;
+    public Preferences() { }
+    internal Preferences(string storagePath) { _storagePath = storagePath; }
+    public string Language { get; set; } = ClientBranding.InitialLanguage;
     public string Background { get; set; } = "dark";
     public string DefaultFit { get; set; } = "contain";
-    public bool Filmstrip { get; set; } = true;
+    public bool Filmstrip { get; set; }
+    public int AppearanceUiVersion { get; set; }
     public bool FullscreenOnOpen { get; set; }
     public ViewerTheme Theme { get; set; } = ViewerTheme.BuiltIn[0];
+    public double TextScale { get; set; } = 1.0;
+    public bool CompactToolbar { get; set; }
+    public List<ViewerTheme> PersonalStyles { get; set; } = [];
     public List<string> RecentFiles { get; set; } = [];
-    private static string FileName => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YingView", "settings.json");
+    private static string DefaultFileName => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YingView", "settings.json");
+    private string FileName => _storagePath ?? DefaultFileName;
     public static Preferences Load()
     {
         try
         {
-            var value = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(FileName)) ?? new();
+            var value = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(DefaultFileName)) ?? new();
             value.Theme.Validate();
+            value.DefaultFit = "contain";
+            value.Language = value.Language == "zh" ? "zh" : "en";
+            if (ClientBranding.DistributionLanguage != "auto") value.Language = ClientBranding.InitialLanguage;
+            if (value.Background is not ("dark" or "light" or "checker")) value.Background = "dark";
+            value.RecentFiles = (value.RecentFiles ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Take(8).ToList();
+            if (value.AppearanceUiVersion < 2) { value.Filmstrip = false; value.AppearanceUiVersion = 2; }
+            if (value.TextScale is < 0.85 or > 1.3) value.TextScale = 1.0;
+            value.PersonalStyles ??= [];
+            value.PersonalStyles = value.PersonalStyles.Where(t => { try { t.Validate(); return true; } catch { return false; } }).ToList();
             return value;
         }
-        catch { return new(); }
+        catch { return new() { AppearanceUiVersion = 2 }; }
     }
     public bool Save()
     {
@@ -41,6 +58,8 @@ public sealed class Preferences
 
 public sealed record ViewerTheme(string Name, string Shell, string Toolbar, string Text, string Muted, string Accent, string Canvas)
 {
+    public static string LocalizedName(string name, bool chinese) => !chinese ? name : name switch
+    { "Obsidian" => "曜石黑", "Paper" => "纸白", "Moss" => "苔绿", "Iris" => "鸢紫", _ => name };
     public static readonly ViewerTheme[] BuiltIn = [
         new("Obsidian", "#111417", "#191D21", "#EDF0F2", "#A9B1B8", "#91D9C5", "#0C0E10"),
         new("Paper", "#F5F5F3", "#FFFFFF", "#24282D", "#646B72", "#28766C", "#E7E7E4"),

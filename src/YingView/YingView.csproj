@@ -1,23 +1,36 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>YingView</AssemblyName>
     <RootNamespace>YingView</RootNamespace>
-    <Version>0.1.0</Version>
-    <Product>YingView</Product>
-    <Authors>Shixi Lin</Authors>
-    <Copyright>Copyright © 2026 Shixi Lin</Copyright>
+    <Version>0.2.0</Version>
+    <ClientLanguage Condition="'$(ClientLanguage)' == ''">auto</ClientLanguage>
+    <Product Condition="'$(ClientLanguage)' != 'zh-CN'">YingView</Product>
+    <Product Condition="'$(ClientLanguage)' == 'zh-CN'">映窗</Product>
+    <AssemblyTitle>$(Product)</AssemblyTitle>
+    <Authors Condition="'$(ClientLanguage)' != 'zh-CN'">Shixi Lin</Authors>
+    <Authors Condition="'$(ClientLanguage)' == 'zh-CN'">光之十一</Authors>
+    <Copyright Condition="'$(ClientLanguage)' != 'zh-CN'">Copyright © 2026 Shixi Lin</Copyright>
+    <Copyright Condition="'$(ClientLanguage)' == 'zh-CN'">版权所有 © 2026 光之十一</Copyright>
     <PackageLicenseExpression>PolyForm-Noncommercial-1.0.0</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/shixi-11/yingview</RepositoryUrl>
-    <ApplicationIcon>Assets/yingview.ico</ApplicationIcon>
+    <ApplicationIcon Condition="'$(ClientLanguage)' == 'auto'">Assets/yingview.ico</ApplicationIcon>
+    <ApplicationIcon Condition="'$(ClientLanguage)' == 'zh-CN'">Assets/yingview-zh-CN.ico</ApplicationIcon>
+    <ApplicationIcon Condition="'$(ClientLanguage)' == 'en-US'">Assets/yingview-en-US.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="YingView.App.Tests" />
+    <AssemblyMetadata Include="ClientLanguage" Value="$(ClientLanguage)" />
     <Resource Include="Assets/yingview.ico" />
+    <Resource Include="Assets/yingview-zh-CN.ico" WithCulture="false" />
+    <Resource Include="Assets/yingview-en-US.ico" WithCulture="false" />
+    <EmbeddedResource Include="Commerce/store-config.json" />
     <EmbeddedResource Include="../../LICENSE" LogicalName="YingView.LICENSE" />
     <EmbeddedResource Include="../../NOTICE" LogicalName="YingView.NOTICE" />
     <EmbeddedResource Include="../../ThirdParty/*.txt" LogicalName="YingView.ThirdParty.%(Filename).txt" />

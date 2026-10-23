@@ -41,6 +41,7 @@ public sealed class Viewport
     public double ImageHeight => _imageHeight;
     public int QuarterTurnsClockwise => _quarterTurns;
     public ViewportFitMode FitMode => _mode;
+    public bool HasManualZoom => _hasManualZoom;
     private double OrientedWidth => (_quarterTurns % 2 == 0) ? _imageWidth : _imageHeight;
     private double OrientedHeight => (_quarterTurns % 2 == 0) ? _imageHeight : _imageWidth;
 

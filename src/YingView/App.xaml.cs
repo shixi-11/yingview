@@ -19,8 +19,9 @@ public partial class App : Application
                 File.AppendAllText(Path.Combine(folder, "errors.log"), $"{DateTimeOffset.Now:O}\n{args.Exception}\n");
             }
             catch { /* Logging must not interrupt the recovery dialog. */ }
-            MessageBox.Show("映窗遇到问题，可重新打开图片。\nYingView encountered a problem. Please reopen the image.\n\n" + args.Exception.Message,
-                "YingView", MessageBoxButton.OK, MessageBoxImage.Warning);
+            bool zh = Current.MainWindow is MainWindow viewer ? viewer.IsChinese : ClientBranding.InitialLanguage == "zh";
+            MessageBox.Show(zh ? "映窗遇到问题，请重新打开图片。" : "YingView encountered a problem. Please reopen the image.",
+                zh ? "映窗" : "YingView", MessageBoxButton.OK, MessageBoxImage.Warning);
             args.Handled = true;
         };
         MainWindow = new MainWindow();

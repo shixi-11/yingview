@@ -1,0 +1,61 @@
+name: Prepare release draft
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Preview version, for example v0.2.0-preview.1'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-draft-${{ inputs.version }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Validate version
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^v\d+\.\d+\.\d+-preview\.\d+$') { throw 'Use a preview version such as v0.2.0-preview.1.' }
+      - name: Test image decoding and Store rules
+        shell: pwsh
+        run: |
+          dotnet run --project tests/YingView.Imaging.Tests -c Release
+          if ($LASTEXITCODE) { throw 'Image tests failed.' }
+          dotnet run --project tests/YingView.Commerce.Tests -c Release
+          if ($LASTEXITCODE) { throw 'Store rule tests failed.' }
+          dotnet run --project tests/YingView.App.Tests -c Release
+          if ($LASTEXITCODE) { throw 'Viewer interaction tests failed.' }
+      - name: Build client and prepare bilingual copy
+        shell: pwsh
+        run: |
+          ./scripts/build.ps1
+          New-Item -ItemType Directory -Path output/release-assets -Force | Out-Null
+          Copy-Item dist/YingView-zh-CN/YingView.exe output/release-assets/YingView-zh-CN.exe
+          Copy-Item dist/YingView-en-US/YingView.exe output/release-assets/YingView-en-US.exe
+          ./scripts/prepare-launch.ps1 -Version $env:RELEASE_VERSION -DownloadUrl "https://github.com/shixi-11/yingview/releases/tag/$env:RELEASE_VERSION"
+          $slug = $env:RELEASE_VERSION.TrimStart('v')
+          $en = Get-Content "output/launch/release-notes-$slug.en-US.md" -Raw
+          $zh = Get-Content "output/launch/release-notes-$slug.zh-CN.md" -Raw
+          [IO.File]::WriteAllText("output/launch/release.md", "$en`n---`n`n$zh", [Text.UTF8Encoding]::new($false))
+      - name: Create unpublished GitHub draft
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $existing = gh release list --json tagName --limit 100 | ConvertFrom-Json
+          if ($LASTEXITCODE) { throw 'Could not check existing releases.' }
+          if ($existing.tagName -contains $env:RELEASE_VERSION) { throw 'This release already exists; inspect it before retrying.' }
+          gh release create $env:RELEASE_VERSION --draft --prerelease --target $env:GITHUB_SHA --title "YingView $env:RELEASE_VERSION" --notes-file output/launch/release.md output/release-assets/YingView-zh-CN.exe output/release-assets/YingView-en-US.exe LICENSE NOTICE THIRD-PARTY-NOTICES.md
+          if ($LASTEXITCODE) { throw 'Draft creation failed or outcome is unknown. Inspect Releases before retrying.' }

@@ -1,28 +1,32 @@
 # YingView
 
-YingView is a bilingual, local-first image viewer for Windows 10 and 11. Open a picture or drop in a folder, then browse in a large, uncluttered window. The app is built with .NET 10 and WPF, with image decoding provided by Magick.NET 15.
+YingView is a local-first image viewer for Windows 10 and 11. Open a picture or drop in a folder to browse it in a large, uncluttered window. It is built with .NET 10 and WPF, with image decoding provided by Magick.NET 15. Download the English build for the YingView name and English interface, or the Simplified Chinese build for the 映窗 name and Chinese interface.
 
-**Version:** 0.1.0 preview · **Architecture:** x64
+**Version:** 0.2.0 Preview · **Architecture:** x64
 
-[简体中文](README.zh-CN.md) · [Download the latest release](https://github.com/shixi-11/yingview/releases) · [Theme guide](docs/themes.md)
+[简体中文](README.zh-CN.md) · [Download from GitHub Releases](https://github.com/shixi-11/yingview/releases) · [Theme guide](docs/themes.md)
 
 ## What it does
 
-- Opens images in a maximized window and fits them to the available view. Small images are enlarged while keeping their proportions.
-- Offers three viewing modes: Fit shows the whole image, Fill covers the window and crops the edges, and Actual Pixels maps one image pixel to one physical display pixel. Drag to pan a zoomed or cropped image.
-- Zooms around the mouse pointer. Browse the current folder in natural filename order with the arrow keys, or use the optional thumbnail strip.
+- Opens images in a maximized window and fits the whole image to the available view. Small images are enlarged proportionally.
+- Zooms around the mouse pointer and lets you pan a zoomed image. Use the arrow keys to browse the current folder in natural filename order.
+- Keeps the controls compact and the thumbnail strip hidden by default; press **T** to show or hide the strip.
+- Compares two images side by side with synchronized zoom and panning. Choose a dark, light, or checkerboard canvas, mark images to keep or review later, and export the session marks to a local CSV file.
+- Sends the selected image to the Windows Recycle Bin with **Delete** or **Del**. This works for files on local fixed drives; network and removable drives are unsupported.
 - Supports animated images within limits of 200 frames, 256 MiB of decoded frames, and 100 million pixels per image. TIFF files open at their first page.
-- Includes Chinese and English interface text, four built-in appearance presets, and JSON theme import and export.
+- Includes four built-in appearance presets, live color and text-size adjustments, a compact-toolbar option, and free JSON theme import and export. The English build uses English interface text; the Simplified Chinese build uses Chinese interface text. Other languages use English.
 
-The decoder is configured for PNG, JPEG, GIF, WebP, AVIF, BMP, TIFF, ICO, HEIC, and HEIF extensions. Decoding depends on each file's encoding and contents; this list does not guarantee that every file will open.
+The decoder is configured for PNG, JPEG, GIF, WebP, AVIF, BMP, TIFF, ICO, HEIC, and HEIF extensions. Support depends on each file's encoding and contents. HEIC and HEIF have not been verified in this release.
 
-## Image handling
+## Image handling and privacy
 
-YingView is for viewing. Rotate and mirror change the on-screen view only; the app does not edit or save changes to your original image. It does not use AI upscaling or claim to restore image detail. Images are processed locally, with no ads and no image uploads.
+YingView opens and compares images locally. Viewing, rotating, and mirroring do not change image bytes. The app does not upload image content, include advertising, or send usage analytics. The only image-file action is the explicit Recycle Bin command described above. See the [privacy information](docs/store/privacy.en-US.md) for local data details.
 
 ## Download and build
 
-The 0.1.0 preview build is unsigned and YingView does not yet have a Microsoft Store listing. Download the Windows x64 build from [GitHub Releases](https://github.com/shixi-11/yingview/releases).
+This repository describes the 0.2.0 Preview for Windows x64. Check [GitHub Releases](https://github.com/shixi-11/yingview/releases) for the builds currently available to download. The Microsoft Store submission has not been made.
+
+Choose the download whose language matches your preference. The selected build also determines the app name, icon, and installed shortcut language.
 
 To build from source, install the .NET 10 SDK and run:
 

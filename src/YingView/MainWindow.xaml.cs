@@ -12,12 +12,14 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using YingView.Core;
 using YingView.Imaging;
+using YingView.Files;
+using YingView.Commerce;
 
 namespace YingView;
 
 public partial class MainWindow : Window
 {
-    private readonly Preferences _settings = Preferences.Load();
+    private readonly Preferences _settings;
     private readonly SemaphoreSlim _decodeGate = new(1);
     private readonly SemaphoreSlim _thumbnailGate = new(2);
     private readonly Dictionary<string, ImageDocument> _cache = new(StringComparer.OrdinalIgnoreCase);
@@ -33,14 +35,22 @@ public partial class MainWindow : Window
     private bool _fullscreen;
     private bool _chromeHidden;
     private bool _loading;
+    private bool _deleting;
+    private double _interfaceScale;
+    private bool _compactToolbar;
+    private StoreBillingService? _billing;
     private WindowState _previousState;
     private string? _error;
     private string T(string zh, string en) => _settings.Language == "zh" ? zh : en;
+    internal bool IsChinese => _settings.Language == "zh";
 
-    public MainWindow()
+    public MainWindow() : this(Preferences.Load()) { }
+    internal MainWindow(Preferences preferences)
     {
+        _settings = preferences;
         InitializeComponent();
-        ApplyTheme(_settings.Theme); ApplyLanguage();
+        _interfaceScale = _settings.TextScale; _compactToolbar = _settings.CompactToolbar;
+        ApplyTheme(_settings.Theme); ApplyLanguage(); ApplyInterfaceScale(_interfaceScale);
         Surface.AlphaBackground = _settings.Background;
         Surface.ViewChanged += UpdateStatus;
         Surface.FullscreenRequested += ToggleFullscreen;
@@ -49,7 +59,8 @@ public partial class MainWindow : Window
         PreviewKeyDown += KeyPressed;
         DragOver += (_, e) => { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
         Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] paths) await OpenPaths(paths); e.Handled = true; };
-        SourceInitialized += (_, _) => SetDarkTitleBar();
+        SourceInitialized += (_, _) => { SetDarkTitleBar(); InitializeBilling(); };
+        SizeChanged += (_, _) => ApplyResponsiveToolbar();
         Loaded += async (_, _) =>
         {
             WindowState = WindowState.Maximized;
@@ -63,21 +74,25 @@ public partial class MainWindow : Window
 
     private void ApplyLanguage()
     {
-        Title = _current is null ? T("映窗 · YingView", "YingView") : Path.GetFileName(_current) + " · " + T("映窗", "YingView");
+        Title = _current is null ? ClientBranding.DisplayName(_settings.Language) : Path.GetFileName(_current) + " · " + ClientBranding.DisplayName(_settings.Language);
+        Icon = BitmapFrame.Create(new Uri("pack://application:,,,/YingView;component/Assets/" + ClientBranding.IconResource(_settings.Language)));
         OpenButton.Content = T("打开图片", "Open image");
-        FitButton.Content = T("完整显示", "Fit"); FillButton.Content = T("铺满屏幕", "Fill");
-        EmptyTitle.Text = T("打开，就是大画面", "Your images. A bigger view.");
-        EmptySubtitle.Text = T("拖入图片或文件夹，小图也会自动放大", "Drop an image or folder. Even small images open large.");
+        FitButton.Content = T("完整显示", "Fit image");
+        EmptyTitle.Text = T("每一张，都完整看见", "See the whole picture.");
+        EmptySubtitle.Text = T("拖入图片或文件夹，自动按比例完整显示", "Drop an image or folder. It opens fully in view.");
         EmptyOpenButton.Content = T("选择图片", "Choose an image");
         InfoTitle.Text = T("图片信息", "Image information");
         Tip(OpenButton, T("打开图片", "Open images") + " · Ctrl+O");
         Tip(PreviousButton, T("上一张", "Previous image") + " · ←"); Tip(NextButton, T("下一张", "Next image") + " · →");
         Tip(FitButton, T("保持比例，完整放大显示", "Enlarge to fit without cropping") + " · F");
-        Tip(FillButton, T("保持比例填满，可拖动查看边缘", "Fill the screen; drag to see cropped edges") + " · C");
         Tip(ActualButton, T("一个图片像素对应一个屏幕像素", "One image pixel per physical display pixel") + " · 1");
         Tip(RotateButton, T("向右旋转", "Rotate clockwise") + " · R");
         Tip(FullscreenButton, T("全屏 / 退出全屏", "Enter / leave fullscreen") + " · F11");
         Tip(ZoomInButton, T("放大", "Zoom in") + " · +"); Tip(ZoomOutButton, T("缩小", "Zoom out") + " · −");
+        Tip(StudioButton, T("自定义界面风格", "Customize appearance"));
+        Tip(DeleteButton, T("移入回收站", "Move to Recycle Bin") + " · Delete / Del");
+        Tip(FilmstripToggleButton, T("展开或收起缩略图", "Show or hide thumbnails") + " · T");
+        ApplyChrome();
         BuildMenu(); UpdateStatus();
         if (_error is not null) EmptyTitle.Text = T("这张图片暂时无法打开", "This image could not be opened");
     }
@@ -111,33 +126,37 @@ public partial class MainWindow : Window
         MoreMenu.Items.Add(background);
         var theme = new MenuItem { Header = T("界面风格", "Appearance") };
         foreach (var preset in ViewerTheme.BuiltIn)
-            theme.Items.Add(Item(preset.Name, () => { ApplyTheme(preset); SaveSettings(); BuildMenu(); }, _settings.Theme.Name == preset.Name));
+            theme.Items.Add(Item(ViewerTheme.LocalizedName(preset.Name, IsChinese), () => { ApplyTheme(preset); SaveSettings(); BuildMenu(); }, _settings.Theme.Name == preset.Name));
         theme.Items.Add(new Separator());
+        theme.Items.Add(Item(T("自定义风格…", "Customize appearance…"), OpenStyleStudio));
         theme.Items.Add(Item(T("导入主题…", "Import theme…"), ImportTheme));
         theme.Items.Add(Item(T("导出当前主题…", "Export current theme…"), ExportTheme)); MoreMenu.Items.Add(theme);
-        var language = new MenuItem { Header = "语言 / Language" };
-        language.Items.Add(Item("简体中文", () => SetLanguage("zh"), _settings.Language == "zh"));
-        language.Items.Add(Item("English", () => SetLanguage("en"), _settings.Language == "en")); MoreMenu.Items.Add(language);
+        if (ClientBranding.DistributionLanguage == "auto")
+        {
+            var language = new MenuItem { Header = T("语言", "Language") };
+            language.Items.Add(Item("简体中文", () => SetLanguage("zh"), _settings.Language == "zh"));
+            language.Items.Add(Item("English", () => SetLanguage("en"), _settings.Language == "en")); MoreMenu.Items.Add(language);
+        }
         MoreMenu.Items.Add(Item(T("缩略图栏", "Thumbnail strip") + "    T", ToggleFilmstrip, _settings.Filmstrip));
         MoreMenu.Items.Add(Item(T("图片信息", "Image information") + "    I", ToggleInfo, InfoPanel.Visibility == Visibility.Visible));
         MoreMenu.Items.Add(Item(T("镜像查看", "Mirror view") + "    H", () => Surface.Mirror(), Surface.Mirrored));
         MoreMenu.Items.Add(Item(T("幻灯片 · 每4秒", "Slideshow · every 4 seconds") + "    P", ToggleSlideshow, _slideshow.IsEnabled));
         MoreMenu.Items.Add(Item(T("暂停 / 播放动图", "Pause / play animation") + "    Space", () => Surface.PauseAnimation()));
-        var defaultFit = new MenuItem { Header = T("打开时的显示方式", "Default image fit") };
-        defaultFit.Items.Add(Item(T("完整显示，自动放大", "Enlarge to fit"), () => SetDefaultFit("contain"), _settings.DefaultFit == "contain"));
-        defaultFit.Items.Add(Item(T("铺满屏幕", "Fill the screen"), () => SetDefaultFit("cover"), _settings.DefaultFit == "cover"));
-        MoreMenu.Items.Add(defaultFit);
         MoreMenu.Items.Add(Item(T("打开图片后进入全屏", "Fullscreen when opening images"), () => { _settings.FullscreenOnOpen = !_settings.FullscreenOnOpen; SaveSettings(); BuildMenu(); }, _settings.FullscreenOnOpen));
         MoreMenu.Items.Add(new Separator());
         MoreMenu.Items.Add(Item(T("复制图片", "Copy image") + "    Ctrl+C", CopyImage));
         MoreMenu.Items.Add(Item(T("复制路径", "Copy file path") + "    Ctrl+Shift+C", CopyPath));
         MoreMenu.Items.Add(Item(T("在文件夹中显示", "Show in folder") + "    Ctrl+E", ShowInFolder));
         MoreMenu.Items.Add(Item(T("粘贴图片", "Paste image") + "    Ctrl+V", async () => await PasteImage()));
+        MoreMenu.Items.Add(Item(T("移入回收站", "Move to Recycle Bin") + "    Delete", async () => await DeleteCurrent()));
+        MoreMenu.Items.Add(new Separator());
+        MoreMenu.Items.Add(Item(T("对照审阅…", "Compare & review…") + "    V", OpenReview));
+        MoreMenu.Items.Add(Item(T("个人风格与专业版", "Personal styles & Pro"), ShowPlans));
         MoreMenu.Items.Add(new Separator());
         MoreMenu.Items.Add(Item(T("快捷键", "Keyboard shortcuts") + "    F1", ShowHelp));
         MoreMenu.Items.Add(Item(T("许可信息", "Licenses"), ShowLicenses));
         MoreMenu.Items.Add(Item(T("关于映窗", "About YingView"), () => MessageBox.Show(this,
-            T("映窗 · YingView 0.1.0\n由光之十一开发\n\n本地查看，无广告，无图片上传。\n源码：github.com/shixi-11/yingview", "YingView 0.1.0\nCreated by Shixi Lin\n\nLocal viewing. No ads. No image uploads.\nSource: github.com/shixi-11/yingview"), T("关于映窗", "About YingView"))));
+            T("映窗 0.2.0 预览版\n由光之十一开发\n\n本地查看，无广告，无图片上传。\n源码：github.com/shixi-11/yingview", "YingView 0.2.0 Preview\nCreated by Shixi Lin\n\nLocal viewing. No ads. No image uploads.\nSource: github.com/shixi-11/yingview"), T("关于映窗", "About YingView"))));
     }
     private void ShowLicenses()
     {
@@ -153,9 +172,8 @@ public partial class MainWindow : Window
             Background = (Brush)Application.Current.Resources["BarBrush"], Foreground = (Brush)Application.Current.Resources["TextBrush"], Padding = new Thickness(20), FontSize = 13, BorderThickness = new Thickness(0) };
         new Window { Owner = this, Title = T("许可信息", "Licenses"), Width = 760, Height = 580, MinWidth = 400, MinHeight = 300, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = text }.ShowDialog();
     }
-    private void SetLanguage(string language) { _settings.Language = language; ApplyLanguage(); SaveSettings(); }
-    private void SetDefaultFit(string mode) { _settings.DefaultFit = mode; Surface.Fit(DefaultFit); SaveSettings(); BuildMenu(); }
-    private ViewportFitMode DefaultFit => _settings.DefaultFit == "cover" ? ViewportFitMode.Cover : ViewportFitMode.Contain;
+    private void SetLanguage(string language) { _settings.Language = language; ApplyLanguage(); InitializeBilling(); SaveSettings(); }
+    private ViewportFitMode DefaultFit => ViewportFitMode.Contain;
     private void SaveSettings() { if (!_settings.Save()) ShowToast(T("偏好设置暂时无法保存", "Preferences could not be saved")); }
     private void ApplyTheme(ViewerTheme theme)
     {
@@ -164,14 +182,21 @@ public partial class MainWindow : Window
         resources["ShellBrush"] = ViewerTheme.Brush(theme.Shell); resources["BarBrush"] = ViewerTheme.Brush(theme.Toolbar);
         resources["TextBrush"] = ViewerTheme.Brush(theme.Text); resources["MutedBrush"] = ViewerTheme.Brush(theme.Muted);
         resources["AccentBrush"] = ViewerTheme.Brush(theme.Accent);
-        resources["LineBrush"] = ViewerTheme.Brush(theme.Name == "Paper" ? "#D8DCE0" : "#333A41");
+        var color = (Color)ColorConverter.ConvertFromString(theme.Toolbar);
+        bool light = .2126 * color.R + .7152 * color.G + .0722 * color.B > 160;
+        resources["LineBrush"] = ViewerTheme.Brush(light ? "#D8DCE0" : "#333A41");
+        resources["HoverBrush"] = ViewerTheme.Brush(light ? "#E2E8E6" : "#293138");
+        resources["PressedBrush"] = ViewerTheme.Brush(light ? "#CFDAD6" : "#354139");
+        var accent = (Color)ColorConverter.ConvertFromString(theme.Accent);
+        resources["AccentTextBrush"] = ViewerTheme.Brush(.2126 * accent.R + .7152 * accent.G + .0722 * accent.B > 160 ? "#14231F" : "#FFFFFF");
         Surface.CanvasBrush = ViewerTheme.Brush(theme.Canvas); Surface.InvalidateVisual(); SetDarkTitleBar();
     }
     [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
     private void SetDarkTitleBar()
     {
         var hwnd = new WindowInteropHelper(this).Handle; if (hwnd == IntPtr.Zero) return;
-        int dark = _settings.Theme.Name == "Paper" ? 0 : 1; _ = DwmSetWindowAttribute(hwnd, 20, ref dark, sizeof(int));
+        var color = (Color)ColorConverter.ConvertFromString(_settings.Theme.Toolbar);
+        int dark = .2126 * color.R + .7152 * color.G + .0722 * color.B > 160 ? 0 : 1; _ = DwmSetWindowAttribute(hwnd, 20, ref dark, sizeof(int));
     }
     private void ImportTheme()
     {
@@ -206,7 +231,7 @@ public partial class MainWindow : Window
     }
     private async Task OpenPaths(string[] paths)
     {
-        if (paths.Length == 0) return;
+        if (paths.Length == 0 || _deleting) return;
         var openGeneration = ++_openGeneration;
         try
         {
@@ -235,11 +260,11 @@ public partial class MainWindow : Window
             _slideshow.Stop(); await LoadCurrent();
             if (_settings.FullscreenOnOpen && !_fullscreen) ToggleFullscreen();
         }
-        catch (Exception ex) { ShowToast(T("无法打开：", "Could not open: ") + ex.Message); }
+        catch { ShowToast(T("无法打开，请检查文件是否仍存在，以及文件夹访问权限。", "Could not open. Check that the files still exist and that the folder is accessible.")); }
     }
     private async Task Navigate(int direction)
     {
-        if (_files.Length == 0) return;
+        if (_files.Length == 0 || _deleting) return;
         _index = (_index + direction + _files.Length) % _files.Length; await LoadCurrent();
     }
     private async Task LoadCurrent()
@@ -270,14 +295,14 @@ public partial class MainWindow : Window
             _settings.RecentFiles.Insert(0, path); _settings.RecentFiles = _settings.RecentFiles.Take(8).ToList();
             BuildMenu();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             if (generation != _generation) return;
-            _error = ex.Message; Surface.SetDocument(null, DefaultFit);
+            _error = T("图片无法打开，可能格式不受支持或文件已损坏。", "This image could not be opened. Its format may be unsupported or the file may be damaged."); Surface.SetDocument(null, DefaultFit);
             EmptyPanel.Visibility = Visibility.Visible;
             EmptyTitle.Text = T("这张图片暂时无法打开", "This image could not be opened");
             EmptySubtitle.Text = T("可按方向键继续看下一张，或重新选择图片", "Use the arrow keys for another image, or choose a different file.");
-            ShowToast(T("解码失败：", "Decode failed: ") + ex.Message);
+            ShowToast(_error);
         }
         finally
         {
@@ -303,7 +328,7 @@ public partial class MainWindow : Window
         for (int i = start; i < Math.Min(_files.Length, start + 9); i++)
         {
             var n = i; var path = _files[i];
-            var image = new Image { Width = 72, Height = 56, Stretch = Stretch.Uniform, Margin = new Thickness(3) };
+            var image = new Image { Width = 58, Height = 40, Stretch = Stretch.Uniform, Margin = new Thickness(2) };
             var border = new Border { BorderBrush = i == _index ? (Brush)Application.Current.Resources["AccentBrush"] : Brushes.Transparent, BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(5), Child = image };
             var button = new Button { Content = border, Padding = new Thickness(2), ToolTip = Path.GetFileName(path) };
             System.Windows.Automation.AutomationProperties.SetName(button, Path.GetFileName(path));
@@ -336,7 +361,9 @@ public partial class MainWindow : Window
         DetailsLabel.Text = _loading ? T("正在打开…", "Opening…") : doc is null ? "" : counter + $"{doc.Width:N0} × {doc.Height:N0}     {doc.Format}" + (doc.Frames.Count > 1 ? $"     {doc.Frames.Count} " + T("帧", "frames") : "");
         ZoomLabel.Text = doc is null ? "—" : $"{Surface.View.Scale * Surface.View.DpiScale * 100:0.#}%";
         PreviousButton.IsEnabled = NextButton.IsEnabled = _files.Length > 1;
-        foreach (var button in new[] { FitButton, FillButton, ActualButton, ZoomInButton, ZoomOutButton, RotateButton }) button.IsEnabled = doc is not null;
+        foreach (var button in new[] { FitButton, ActualButton, ZoomInButton, ZoomOutButton, RotateButton }) button.IsEnabled = doc is not null;
+        DeleteButton.IsEnabled = _current is not null && !_loading && !_deleting;
+        FitButton.Background = doc is not null && !Surface.View.HasManualZoom && Surface.View.FitMode == ViewportFitMode.Contain ? (Brush)Application.Current.Resources["HoverBrush"] : Brushes.Transparent;
         if (_loading) InfoText.Text = T("正在打开…", "Opening…");
         else if (doc is not null)
         {
@@ -360,9 +387,99 @@ public partial class MainWindow : Window
         bool hidden = _fullscreen || _chromeHidden;
         Toolbar.Visibility = StatusBar.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
         Filmstrip.Visibility = !hidden && _settings.Filmstrip ? Visibility.Visible : Visibility.Collapsed;
-        Root.RowDefinitions[0].Height = new GridLength(hidden ? 0 : 60);
-        Root.RowDefinitions[2].Height = new GridLength(!hidden && _settings.Filmstrip ? 90 : 0);
-        Root.RowDefinitions[3].Height = new GridLength(hidden ? 0 : 30);
+        Root.RowDefinitions[0].Height = new GridLength(hidden ? 0 : (_compactToolbar ? 40 : 48) * Math.Max(1, _interfaceScale));
+        Root.RowDefinitions[2].Height = new GridLength(!hidden && _settings.Filmstrip ? 62 : 0);
+        Root.RowDefinitions[3].Height = new GridLength(hidden ? 0 : 28 * Math.Max(1, _interfaceScale));
+        FilmstripLabel.Text = _settings.Filmstrip ? T("收起缩略图", "Hide thumbnails") : T("缩略图", "Thumbnails");
+        FilmstripChevron.Text = _settings.Filmstrip ? "\uE70D" : "\uE70E";
+        ApplyResponsiveToolbar();
+    }
+    private void ApplyResponsiveToolbar()
+    {
+        if (ZoomLabel is null) return;
+        var showZoom = ActualWidth > 900 * Math.Max(1, _interfaceScale);
+        ZoomLabel.Visibility = ZoomInButton.Visibility = ZoomOutButton.Visibility = showZoom ? Visibility.Visible : Visibility.Collapsed;
+        DetailsLabel.Visibility = ActualWidth > 860 ? Visibility.Visible : Visibility.Collapsed;
+    }
+    private void ApplyInterfaceScale(double scale)
+    {
+        _interfaceScale = Math.Clamp(scale, .85, 1.3);
+        Application.Current.Resources["ControlTextSize"] = 13 * _interfaceScale;
+        FileLabel.FontSize = DetailsLabel.FontSize = ZoomLabel.FontSize = FilmstripToggleButton.FontSize = 12 * _interfaceScale;
+        InfoText.FontSize = ToastText.FontSize = EmptyOpenButton.FontSize = 13 * _interfaceScale;
+        InfoTitle.FontSize = 15 * _interfaceScale;
+        EmptyTitle.FontSize = 23 * _interfaceScale; EmptySubtitle.FontSize = 14 * _interfaceScale;
+        ApplyChrome();
+    }
+    private void ApplyCompactToolbar(bool compact) { _compactToolbar = compact; ApplyChrome(); }
+    private void FilmstripClick(object sender, RoutedEventArgs e) => ToggleFilmstrip();
+    private void StyleStudioClick(object sender, RoutedEventArgs e) => OpenStyleStudio();
+    private void OpenStyleStudio()
+    {
+        var studio = new StyleStudioWindow(_settings, ApplyTheme, ApplyInterfaceScale, ApplyCompactToolbar, _billing?.Snapshot.HasPro == true) { Owner = this };
+        studio.ShowDialog();
+        ApplyTheme(_settings.Theme); ApplyChrome(); BuildMenu();
+        if (studio.ProRequested) ShowPlans();
+    }
+    private void InitializeBilling()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        _billing = new StoreBillingService(hwnd, _settings.Language == "zh");
+        _ = _billing.LoadAsync();
+    }
+    private void ShowPlans()
+    {
+        if (_billing is null) InitializeBilling();
+        if (_billing is null) return;
+        new PlansWindow(_billing, _settings.Language == "zh") { Owner = this }.ShowDialog();
+    }
+    private void OpenReview()
+    {
+        if (_current is null || _files.Length < 2)
+        {
+            ShowToast(T("打开至少两张图片后，即可对照审阅", "Open at least two images to compare and review")); return;
+        }
+        _slideshow.Stop();
+        new Review.ReviewWindow(_files, _current, _settings.Language == "zh") { Owner = this }.ShowDialog();
+    }
+    private async void DeleteClick(object sender, RoutedEventArgs e) => await DeleteCurrent();
+    private async Task DeleteCurrent()
+    {
+        if (_current is null || _loading || _deleting) return;
+        var path = _current;
+        _deleting = true; _slideshow.Stop(); UpdateStatus();
+        try
+        {
+            if (!await RecycleBinService.RecycleAsync(path, new WindowInteropHelper(this).Handle))
+            {
+                ShowToast(T("未能移入回收站，图片已保留。", "Could not move this image to the Recycle Bin. The image was kept.")); return;
+            }
+            _cache.Remove(path); _cacheOrder.Remove(path);
+            _settings.RecentFiles.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+            int removedIndex = Array.FindIndex(_files, p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+            _files = _files.Where(p => !string.Equals(p, path, StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (string.Equals(_current, path, StringComparison.OrdinalIgnoreCase))
+            {
+                if (_files.Length > 0)
+                {
+                    _index = Math.Clamp(removedIndex, 0, _files.Length - 1); await LoadCurrent();
+                }
+                else
+                {
+                    ++_generation; ++_thumbGeneration; _index = -1; _current = null; _error = null;
+                    Surface.SetDocument(null, DefaultFit); Thumbnails.Children.Clear();
+                    EmptyPanel.Visibility = Visibility.Visible; ApplyLanguage();
+                }
+            }
+            else _index = Array.FindIndex(_files, p => string.Equals(p, _current, StringComparison.OrdinalIgnoreCase));
+            BuildMenu(); SaveSettings();
+            ShowToast(T("已移入回收站，可在回收站恢复", "Moved to Recycle Bin. You can restore it there."));
+        }
+        catch (NotSupportedException) { ShowToast(T("这个位置不支持回收站，图片已保留。请在文件夹中处理。", "This location does not support the Recycle Bin. The image was kept. Manage it in its folder.")); }
+        catch (FileNotFoundException) { ShowToast(T("图片已被移动或删除，按 F5 刷新文件夹", "This image has been moved or deleted. Press F5 to refresh.")); }
+        catch { ShowToast(T("未能移入回收站，图片已保留。请检查文件权限或是否正被占用。", "Could not move this image to the Recycle Bin. Check permissions or whether another app is using it.")); }
+        finally { _deleting = false; UpdateStatus(); Surface.Focus(); }
     }
     private void ToggleFullscreen()
     {
@@ -377,7 +494,6 @@ public partial class MainWindow : Window
     private async void PreviousClick(object sender, RoutedEventArgs e) => await Navigate(-1);
     private async void NextClick(object sender, RoutedEventArgs e) => await Navigate(1);
     private void FitClick(object sender, RoutedEventArgs e) => Surface.Fit(ViewportFitMode.Contain);
-    private void FillClick(object sender, RoutedEventArgs e) => Surface.Fit(ViewportFitMode.Cover);
     private void ActualClick(object sender, RoutedEventArgs e) => Surface.Fit(ViewportFitMode.Actual);
     private void ZoomInClick(object sender, RoutedEventArgs e) => Surface.Zoom(1.2);
     private void ZoomOutClick(object sender, RoutedEventArgs e) => Surface.Zoom(1 / 1.2);
@@ -407,9 +523,9 @@ public partial class MainWindow : Window
             if (Clipboard.ContainsFileDropList()) { await OpenPaths(Clipboard.GetFileDropList().Cast<string>().ToArray()); return; }
             var bitmap = Clipboard.GetImage();
             if (bitmap is null) { ShowToast(T("剪贴板里没有图片", "No image on the clipboard")); return; }
-            bitmap.Freeze(); ++_generation; ++_thumbGeneration; _files = []; _index = -1; _current = null; _slideshow.Stop();
+            bitmap.Freeze(); ++_generation; ++_thumbGeneration; ++_openGeneration; _files = []; _index = -1; _current = null; _loading = false; _error = null; _slideshow.Stop();
             Surface.SetDocument(new ImageDocument([bitmap], [100], bitmap.PixelWidth, bitmap.PixelHeight, "CLIPBOARD", (long)bitmap.PixelWidth * bitmap.PixelHeight * 4), DefaultFit);
-            EmptyPanel.Visibility = Visibility.Collapsed; Thumbnails.Children.Clear(); Title = T("剪贴板", "Clipboard") + " · YingView"; UpdateStatus();
+            EmptyPanel.Visibility = Visibility.Collapsed; Thumbnails.Children.Clear(); Title = T("剪贴板", "Clipboard") + " · " + ClientBranding.DisplayName(_settings.Language); UpdateStatus(); BuildMenu();
         }
         catch (Exception ex) { ShowToast(ex.Message); }
     }
@@ -420,12 +536,11 @@ public partial class MainWindow : Window
         catch (Exception ex) { ShowToast(ex.Message); }
     }
     private void ShowHelp() => MessageBox.Show(this,
-        T("Ctrl+O  打开图片\nCtrl+Shift+O  打开文件夹\n← / →  上一张 / 下一张\n滚轮  围绕鼠标缩放\n拖动  移动画面\nF / 0  完整显示并自动放大\nC  铺满屏幕\n1  原始像素\n+ / −  放大 / 缩小\nR  旋转    H  镜像\nB  切换透明背景\nT  缩略图    I  图片信息\nP  幻灯片    空格  暂停动图\nF11 / 双击  全屏\nTab  隐藏工具栏\nEsc  退出全屏 / 关闭信息\nCtrl+C  复制原图\nCtrl+Shift+C  复制路径\nCtrl+V  粘贴图片\nCtrl+E  在文件夹中显示\nF5  重新载入", "Ctrl+O  Open images\nCtrl+Shift+O  Open folder\n← / →  Previous / next image\nMouse wheel  Zoom around pointer\nDrag  Pan\nF / 0  Enlarge to fit\nC  Fill screen\n1  Actual pixels\n+ / −  Zoom in / out\nR  Rotate    H  Mirror\nB  Cycle transparency background\nT  Thumbnails    I  Image info\nP  Slideshow    Space  Pause animation\nF11 / Double-click  Fullscreen\nTab  Hide toolbars\nEsc  Leave fullscreen / close info\nCtrl+C  Copy original image\nCtrl+Shift+C  Copy file path\nCtrl+V  Paste image\nCtrl+E  Show in folder\nF5  Reload"), T("快捷键", "Keyboard shortcuts"));
+        T("Ctrl+O  打开图片\nCtrl+Shift+O  打开文件夹\n← / →  上一张 / 下一张\n滚轮  围绕鼠标缩放\n拖动  移动画面\nF / 0  完整显示并自动放大\n1  原始像素\n+ / −  放大 / 缩小\nR  旋转    H  镜像\nB  切换透明背景\nDelete / Del  移入回收站\nV  对照审阅\nT  缩略图    I  图片信息\nP  幻灯片    空格  暂停动图\nF11 / 双击  全屏\nTab  隐藏工具栏\nEsc  退出全屏 / 关闭信息\nCtrl+C  复制原图\nCtrl+Shift+C  复制路径\nCtrl+V  粘贴图片\nCtrl+E  在文件夹中显示\nF5  重新载入", "Ctrl+O  Open images\nCtrl+Shift+O  Open folder\n← / →  Previous / next image\nMouse wheel  Zoom around pointer\nDrag  Pan\nF / 0  Enlarge to fit\n1  Actual pixels\n+ / −  Zoom in / out\nR  Rotate    H  Mirror\nB  Cycle transparency background\nDelete / Del  Move to Recycle Bin\nV  Compare & review\nT  Thumbnails    I  Image info\nP  Slideshow    Space  Pause animation\nF11 / Double-click  Fullscreen\nTab  Hide toolbars\nEsc  Leave fullscreen / close info\nCtrl+C  Copy original image\nCtrl+Shift+C  Copy file path\nCtrl+V  Paste image\nCtrl+E  Show in folder\nF5  Reload"), T("快捷键", "Keyboard shortcuts"));
     private async void KeyPressed(object sender, KeyEventArgs e)
     {
         if (MoreMenu.IsSubmenuOpen) return;
-        if (e.OriginalSource is TextBox { IsReadOnly: false }) return;
-        if (e.OriginalSource is TextBox text && text.SelectionLength > 0 && e.Key == Key.C && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
+        if (e.OriginalSource is TextBox) return;
         bool ctrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control); bool shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
         if (ctrl)
         {
@@ -446,7 +561,8 @@ public partial class MainWindow : Window
             case Key.Home: if (_files.Length > 0) { _index = 0; await LoadCurrent(); } break;
             case Key.End: if (_files.Length > 0) { _index = _files.Length - 1; await LoadCurrent(); } break;
             case Key.F: case Key.D0: case Key.NumPad0: Surface.Fit(ViewportFitMode.Contain); break;
-            case Key.C: Surface.Fit(ViewportFitMode.Cover); break;
+            case Key.Delete: if (!e.IsRepeat) await DeleteCurrent(); break;
+            case Key.V: OpenReview(); break;
             case Key.D1: case Key.NumPad1: Surface.Fit(ViewportFitMode.Actual); break;
             case Key.Add: case Key.OemPlus: Surface.Zoom(1.2); break;
             case Key.Subtract: case Key.OemMinus: Surface.Zoom(1 / 1.2); break;

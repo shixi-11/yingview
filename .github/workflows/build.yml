@@ -17,6 +17,10 @@ jobs:
         run: dotnet run --project tests/YingView.Core.Tests -c Release
       - name: Test image decoding
         run: dotnet run --project tests/YingView.Imaging.Tests -c Release
+      - name: Test Store entitlement rules
+        run: dotnet run --project tests/YingView.Commerce.Tests -c Release
+      - name: Test viewer interactions without desktop input
+        run: dotnet run --project tests/YingView.App.Tests -c Release
       - name: Publish standalone client
         shell: pwsh
         run: ./scripts/build.ps1
