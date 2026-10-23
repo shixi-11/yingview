@@ -18,4 +18,5 @@ internal static class ClientBranding
     internal static string InitialLanguage => ResolveLanguage(DistributionLanguage, CultureInfo.CurrentUICulture.Name);
     internal static string DisplayName(string language) => language == "zh" ? "映窗" : "YingView";
     internal static string IconResource(string language) => language == "zh" ? "yingview-zh-CN.ico" : "yingview-en-US.ico";
+    internal static string DesktopAppId(string language) => language == "zh" ? "Shixi.YingView.ZhCN" : "Shixi.YingView.EnUS";
 }

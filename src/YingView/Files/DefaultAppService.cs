@@ -83,6 +83,7 @@ public static class DefaultAppService
         {
             progId.SetValue("", plan.DisplayName, RegistryValueKind.String);
             progId.SetValue("FriendlyTypeName", plan.DisplayName, RegistryValueKind.String);
+            progId.SetValue("AppUserModelID", ClientBranding.DesktopAppId(plan.Language == "zh-CN" ? "zh" : "en"), RegistryValueKind.String);
             using var icon = progId.CreateSubKey("DefaultIcon", true)!;
             icon.SetValue("", $"\"{plan.ExecutablePath}\",0", RegistryValueKind.String);
             using var command = progId.CreateSubKey(@"shell\open\command", true)!;

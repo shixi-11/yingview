@@ -23,17 +23,24 @@ if (Test-Path -LiteralPath $manifestPath) { Copy-Item -LiteralPath $manifestPath
 $installed = Join-Path $destination 'YingView.exe'
 if (Test-Path -LiteralPath (Join-Path $Source 'ThirdParty')) { Copy-Item -LiteralPath (Join-Path $Source 'ThirdParty') -Destination $destination -Recurse -Force }
 $shell = New-Object -ComObject WScript.Shell
+$shortcutIdentitySource = Join-Path $PSScriptRoot 'ShortcutIdentity.cs'
+if (-not (Test-Path -LiteralPath $shortcutIdentitySource)) { throw 'ShortcutIdentity.cs must be beside Install.ps1.' }
+if (-not ('YingViewShortcutIdentity' -as [type])) { Add-Type -Path $shortcutIdentitySource }
+$desktopAppId = if ($language -eq 'zh-CN') { 'Shixi.YingView.ZhCN' } else { 'Shixi.YingView.EnUS' }
 foreach ($folder in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) {
-    $shortcut = $shell.CreateShortcut((Join-Path $folder "$displayName.lnk"))
+    $shortcutPath = Join-Path $folder "$displayName.lnk"
+    $shortcut = $shell.CreateShortcut($shortcutPath)
     $shortcut.TargetPath = $installed
     $shortcut.WorkingDirectory = $destination
     $shortcut.IconLocation = "$installed,0"
     $shortcut.Save()
+    [YingViewShortcutIdentity]::Set($shortcutPath, $desktopAppId)
 }
 $key = "HKCU:\Software\Classes\YingView.$language"
 New-Item -Path $key -Force | Out-Null
 Set-Item -Path $key -Value $displayName
 New-ItemProperty -Path $key -Name 'FriendlyAppName' -Value $displayName -PropertyType String -Force | Out-Null
+New-ItemProperty -Path $key -Name 'AppUserModelID' -Value $desktopAppId -PropertyType String -Force | Out-Null
 New-Item -Path "$key\DefaultIcon" -Force | Out-Null
 Set-Item -Path "$key\DefaultIcon" -Value ('"' + $installed + '",0')
 New-Item -Path "$key\shell\open\command" -Force | Out-Null

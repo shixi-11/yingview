@@ -16,6 +16,7 @@ foreach ($language in $languages) {
     if ($LASTEXITCODE -ne 0) { throw "Publish failed for $language." }
     foreach ($file in @('LICENSE','NOTICE','THIRD-PARTY-NOTICES.md')) { Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination (Join-Path $destination $file) -Force }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install.ps1') -Destination (Join-Path $destination 'Install.ps1') -Force
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ShortcutIdentity.cs') -Destination (Join-Path $destination 'ShortcutIdentity.cs') -Force
     Copy-Item -LiteralPath (Join-Path $projectRoot 'ThirdParty') -Destination $destination -Recurse -Force
     [ordered]@{ Language=$language; DisplayName=$displayName; Version=$projectVersion } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destination 'client-language.json') -Encoding utf8
     Write-Output "Client: $destination ($language)"

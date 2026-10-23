@@ -31,6 +31,9 @@ internal static class Program
             return 0;
         }
         Directory.CreateDirectory(Output);
+        var identitySetter = typeof(App).GetMethod("SetCurrentProcessExplicitAppUserModelID", BindingFlags.NonPublic | BindingFlags.Static)!;
+        Check((int)identitySetter.Invoke(null, new object[] { "Shixi.YingView.Tests" })! == 0,
+            "The documented process identity API must accept a stable desktop identity before any WPF window is created.");
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
         var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         app.InitializeComponent();
@@ -109,6 +112,7 @@ internal static class Program
 
     private static void VerifyDefaultAppPlan()
     {
+        Check(ClientBranding.DesktopAppId("zh") == "Shixi.YingView.ZhCN" && ClientBranding.DesktopAppId("en") == "Shixi.YingView.EnUS", "Installer, shortcut and process identities must distinguish the language clients consistently.");
         var plan = DefaultAppService.CreateRegistrationPlan("zh", Path.GetFullPath("YingView.exe"));
         Check(plan.DisplayName == "映窗" && plan.ProgId == "YingView.zh-CN" && plan.Extensions.Contains(".png") && !plan.Extensions.Contains(".heic"), "Default app registration must follow localized branding and verified formats.");
         Check(DefaultAppService.BuildSettingsUri("映窗") == "ms-settings:defaultapps?registeredAppUser=%E6%98%A0%E7%AA%97", "The system settings deep link must encode the real localized registration name.");
