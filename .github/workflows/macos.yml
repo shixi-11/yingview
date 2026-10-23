@@ -40,8 +40,8 @@ jobs:
           else
             gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" --title 'YingView macOS 0.3.0 Preview' --notes-file output/mac-notes.md
           fi
-          cp dist/macOS-zh-CN/映窗.dmg output/映窗-macOS.dmg
-          cp dist/macOS-en-US/YingView.dmg output/YingView-macOS.dmg
-          gh release upload "$TAG" output/映窗-macOS.dmg output/YingView-macOS.dmg --clobber
+          cp dist/macOS-zh-CN/映窗.dmg output/YingView-macOS-zh-CN.dmg
+          cp dist/macOS-en-US/YingView.dmg output/YingView-macOS-en-US.dmg
+          gh release upload "$TAG" output/YingView-macOS-zh-CN.dmg output/YingView-macOS-en-US.dmg --clobber
           find output/mac-tests -type f -name '*.png' -exec sh -c 'for f do cp "$f" "output/mac-$(basename "$(dirname "$f")")-$(basename "$f")"; done' sh {} +
           for f in output/mac-*.png; do [ ! -f "$f" ] || gh release upload "$TAG" "$f" --clobber; done

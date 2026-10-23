@@ -50,7 +50,7 @@ foreach ($ext in @('.png','.jpg','.jpeg','.gif','.webp','.avif','.bmp','.tif','.
     New-ItemProperty -Path "$appKey\SupportedTypes" -Name $ext -Value '' -PropertyType String -Force | Out-Null
     $openWith = "HKCU:\Software\Classes\$ext\OpenWithProgids"
     New-Item -Path $openWith -Force | Out-Null
-    New-ItemProperty -Path $openWith -Name "YingView.$language" -Value '' -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $openWith -Name "YingView.$language" -Value ([byte[]]@()) -PropertyType None -Force | Out-Null
 }
 $capabilityPath = "Software\YingView\$language\Capabilities"
 $capabilities = "HKCU:\$capabilityPath"
@@ -63,4 +63,15 @@ foreach ($ext in @('.png','.jpg','.jpeg','.gif','.webp','.avif','.bmp','.tif','.
 }
 New-Item -Path 'HKCU:\Software\RegisteredApplications' -Force | Out-Null
 New-ItemProperty -Path 'HKCU:\Software\RegisteredApplications' -Name $displayName -Value $capabilityPath -PropertyType String -Force | Out-Null
+if (-not ('YingViewShellNotification' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class YingViewShellNotification {
+    [DllImport("shell32.dll")]
+    public static extern void SHChangeNotify(uint eventId, uint flags, IntPtr item1, IntPtr item2);
+}
+'@
+}
+[YingViewShellNotification]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
 if ($language -eq 'zh-CN') { Write-Output '映窗已安装。可在Windows“打开方式”中选择映窗。' } else { Write-Output 'YingView installed. Select YingView in Windows Open with to use it for images.' }

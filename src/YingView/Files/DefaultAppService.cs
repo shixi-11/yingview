@@ -108,6 +108,11 @@ public static class DefaultAppService
             using var fileAssociations = capabilities.CreateSubKey("FileAssociations", true)!;
             foreach (var extension in plan.Extensions) fileAssociations.SetValue(extension, plan.ProgId, RegistryValueKind.String);
         }
+        foreach (var extension in plan.Extensions)
+        {
+            using var openWith = classes.CreateSubKey($@"{extension}\OpenWithProgids", true)!;
+            openWith.SetValue(plan.ProgId, Array.Empty<byte>(), RegistryValueKind.None);
+        }
 
         using var registered = Registry.CurrentUser.CreateSubKey(@"Software\RegisteredApplications", true)!;
         registered.SetValue(plan.DisplayName, plan.CapabilitiesPath, RegistryValueKind.String);
