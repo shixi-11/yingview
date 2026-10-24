@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 256 256">
+  <title>YingView — overlapping image planes</title>
+  <defs>
+    <linearGradient id="tile" x1="32" y1="8" x2="224" y2="248" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FCFDFF"/><stop offset="1" stop-color="#E5EFFF"/>
+    </linearGradient>
+    <linearGradient id="left" x1="44" y1="64" x2="151" y2="146" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#79E8F5"/><stop offset="1" stop-color="#1689FA"/>
+    </linearGradient>
+    <linearGradient id="right" x1="207" y1="79" x2="99" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#268FFF"/><stop offset="1" stop-color="#0759EB"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#tile)"/>
+  <path id="left-plane" fill="url(#left)" d="M 63,52 L 139,72 Q 148,74 148,83 L 148,91 L 96,108 Q 88,111 88,119 L 88,172 L 58,182 Q 44,187 44,171 L 44,69 Q 44,48 63,52 Z"/>
+  <path id="right-plane" fill="url(#right)" d="M 148,91 L 194,77 Q 214,71 214,96 L 214,192 Q 214,216 194,210 L 99,186 Q 88,183 88,173 L 88,172 L 139,154 Q 148,151 148,142 Z"/>
+</svg>

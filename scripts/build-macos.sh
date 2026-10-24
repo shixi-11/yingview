@@ -16,7 +16,7 @@ for LANGUAGE in zh-CN en-US; do
   cp "$BIN/YingView" "$APP/Contents/MacOS/YingView"
   cp "$PACKAGE/Info.plist" "$APP/Contents/Info.plist"
   python3 - "$APP/Contents/Info.plist" "$NAME" "$LANGUAGE" "$VERSION" "$SOURCE" "$ROOT" <<'PY'
-import plistlib,sys,struct,pathlib
+import plistlib,sys,struct,pathlib,shutil
 path,name,language,version,source,root=sys.argv[1:]
 with open(path,'rb') as f: info=plistlib.load(f)
 info.update(CFBundleDisplayName=name,CFBundleName=name,CFBundleExecutable='YingView',CFBundleShortVersionString=version,
@@ -24,11 +24,14 @@ info.update(CFBundleDisplayName=name,CFBundleName=name,CFBundleExecutable='YingV
     CFBundleDevelopmentRegion='zh-Hans' if language=='zh-CN' else 'en',CFBundleLocalizations=['zh-Hans' if language=='zh-CN' else 'en'],NSHighResolutionCapable=True,
     NSHumanReadableCopyright='版权所有 © 2026 光之十一' if language=='zh-CN' else 'Copyright © 2026 Shixi Lin')
 with open(path,'wb') as f: plistlib.dump(info,f)
-ico=(pathlib.Path(root)/'src'/'YingView'/'Assets'/f'yingview-{language}.ico').read_bytes()
-entries=[struct.unpack_from('<BBBBHHII',ico,6+i*16) for i in range(struct.unpack_from('<H',ico,4)[0])]
-pngs=[(e[6],ico[e[7]:e[7]+e[6]]) for e in entries if ico[e[7]:e[7]+8]==b'\x89PNG\r\n\x1a\n']
-if not pngs: raise SystemExit('No PNG representation in existing localized icon')
-(pathlib.Path(path).parent/'Resources'/'icon-source.png').write_bytes(max(pngs)[1])
+icon=pathlib.Path(root)/'src'/'YingView'/'Assets'/'app-icon.png'
+data=icon.read_bytes()
+if data[:8] != b'\x89PNG\r\n\x1a\n': raise SystemExit(f'Invalid PNG icon: {icon}')
+width,height=struct.unpack_from('>II',data,16)
+bit_depth,color_type=data[24],data[25]
+if (width,height,bit_depth,color_type) != (1024,1024,8,6):
+    raise SystemExit(f'Expected a 1024x1024 8-bit RGBA PNG icon, got {width}x{height}, bit depth {bit_depth}, color type {color_type}: {icon}')
+shutil.copyfile(icon,pathlib.Path(path).parent/'Resources'/'icon-source.png')
 PY
   ICONSET="$DEST/AppIcon.iconset"; mkdir -p "$ICONSET"
   for SIZE in 16 32 128 256 512; do

@@ -45,15 +45,17 @@ if ([string]$languageMetadata.Language -cne 'auto') {
 }
 
 $sourceAssets = Join-Path $PSScriptRoot '..\src\YingView\Assets'
-$localizedIconPaths = @{
-    'en-US' = Join-Path $sourceAssets 'yingview-en-US.ico'
-    'zh-CN' = Join-Path $sourceAssets 'yingview-zh-CN.ico'
+$appIconPath = Join-Path $sourceAssets 'app-icon.png'
+if (-not (Test-Path -LiteralPath $appIconPath -PathType Leaf)) {
+    throw "The universal app icon was not found: $appIconPath"
 }
-foreach ($locale in @('en-US', 'zh-CN')) {
-    if (-not (Test-Path -LiteralPath $localizedIconPaths[$locale] -PathType Leaf)) {
-        throw "The $locale branded icon was not found: $($localizedIconPaths[$locale])"
+$sourceIcon = [Drawing.Bitmap]::new((Resolve-Path -LiteralPath $appIconPath).Path)
+try {
+    if ($sourceIcon.Width -ne 1024 -or $sourceIcon.Height -ne 1024) {
+        throw "The universal app icon must be 1024x1024 pixels; found $($sourceIcon.Width)x$($sourceIcon.Height)."
     }
 }
+finally { $sourceIcon.Dispose() }
 
 $sdkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
 $sdkTools = Get-ChildItem -LiteralPath $sdkRoot -Recurse -Filter MakeAppx.exe -File -ErrorAction SilentlyContinue |
@@ -91,20 +93,36 @@ try {
         $localeAssetPath = Join-Path $stagePath ("Assets\$locale")
         $localeStringPath = Join-Path $stagePath ("Strings\$locale")
         New-Item -ItemType Directory -Path $localeAssetPath, $localeStringPath -Force | Out-Null
-        $sourceIcon = [Drawing.Icon]::new((Resolve-Path -LiteralPath $localizedIconPaths[$locale]).Path)
+        $sourceIcon = [Drawing.Bitmap]::new((Resolve-Path -LiteralPath $appIconPath).Path)
         try {
-            foreach ($asset in @(@('Square44x44Logo.png', 44), @('Square150x150Logo.png', 150), @('StoreLogo.png', 50))) {
-                $bitmap = [Drawing.Bitmap]::new($asset[1], $asset[1], [Drawing.Imaging.PixelFormat]::Format32bppArgb)
-                $graphics = [Drawing.Graphics]::FromImage($bitmap)
+            $renderPng = {
+                param([string]$FileName, [int]$Size)
+                $bitmap = [Drawing.Bitmap]::new($Size, $Size, [Drawing.Imaging.PixelFormat]::Format32bppArgb)
                 try {
-                    $graphics.Clear([Drawing.Color]::Transparent)
-                    $graphics.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-                    $graphics.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::HighQuality
-                    $graphics.PixelOffsetMode = [Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-                    $graphics.DrawIcon($sourceIcon, [Drawing.Rectangle]::new(0, 0, $asset[1], $asset[1]))
-                    $bitmap.Save((Join-Path $localeAssetPath $asset[0]), [Drawing.Imaging.ImageFormat]::Png)
+                    $graphics = [Drawing.Graphics]::FromImage($bitmap)
+                    try {
+                        $graphics.Clear([Drawing.Color]::Transparent)
+                        $graphics.CompositingMode = [Drawing.Drawing2D.CompositingMode]::SourceCopy
+                        $graphics.CompositingQuality = [Drawing.Drawing2D.CompositingQuality]::HighQuality
+                        $graphics.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+                        $graphics.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::HighQuality
+                        $graphics.PixelOffsetMode = [Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+                        $graphics.DrawImage($sourceIcon, [Drawing.Rectangle]::new(0, 0, $Size, $Size), [Drawing.Rectangle]::new(0, 0, 1024, 1024), [Drawing.GraphicsUnit]::Pixel)
+                    }
+                    finally { $graphics.Dispose() }
+                    $bitmap.Save((Join-Path $localeAssetPath $FileName), [Drawing.Imaging.ImageFormat]::Png)
                 }
-                finally { $graphics.Dispose(); $bitmap.Dispose() }
+                finally { $bitmap.Dispose() }
+            }
+            foreach ($asset in @(@('Square44x44Logo', 44), @('Square150x150Logo', 150), @('StoreLogo', 50))) {
+                & $renderPng ($asset[0] + '.png') $asset[1]
+                foreach ($scale in @(100, 200, 400)) {
+                    $scaledSize = [int]($asset[1] * $scale / 100)
+                    & $renderPng ("{0}.scale-{1}.png" -f $asset[0], $scale) $scaledSize
+                }
+            }
+            foreach ($targetSize in @(16, 24, 32, 48, 256)) {
+                & $renderPng ("Square44x44Logo.targetsize-{0}_altform-unplated.png" -f $targetSize) $targetSize
             }
         }
         finally { $sourceIcon.Dispose() }
