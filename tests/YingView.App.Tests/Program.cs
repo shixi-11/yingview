@@ -147,6 +147,7 @@ internal static class Program
             Check(settings.Background == "white", "The background button must toggle black to white.");
             InvokeVoid(window, "SetCanvasBackground", originalBackground);
             var fixtures = CreateFixtures();
+            VerifyStartupContent(fixtures[0]);
             try
             {
                 Pump(InvokeAsync(window, "OpenPaths", (object)new[] { fixtures[0], fixtures[1], fixtures[2] }));
@@ -390,6 +391,56 @@ internal static class Program
         using var stream = File.Create(path);
         new PngBitmapEncoder { Frames = { BitmapFrame.Create(bitmap) } }.Save(stream);
         return path;
+    }
+
+    private static void VerifyStartupContent(string fixture)
+    {
+        var directory = Path.Combine(Output, "startup"); Directory.CreateDirectory(directory);
+        var image = Path.Combine(directory, "image with spaces.png"); File.Copy(fixture, image, true);
+        var broken = Path.Combine(directory, "broken.png"); File.WriteAllText(broken, "Not an image");
+        var welcome = new MainWindow(new Preferences(Path.Combine(directory, "welcome-settings.json")) { Language = "en" }, ["--test"]);
+        Check(((FrameworkElement)Field(welcome, "EmptyPanel")).Visibility == Visibility.Visible,
+            "Starting without a file must retain the welcome page.");
+        welcome.Close();
+
+        var startup = new MainWindow(new Preferences(Path.Combine(directory, "image-settings.json")) { Language = "en" }, [image]);
+        var panel = (FrameworkElement)Field(startup, "EmptyPanel");
+        var surface = (ImageSurface)Field(startup, "Surface");
+        var gate = (SemaphoreSlim)Field(startup, "_decodeGate");
+        Check(panel.Visibility == Visibility.Collapsed && (bool)Field(startup, "_loading"),
+            "A file launch must suppress the welcome page before the first render or Loaded event.");
+        SaveReviewPng(startup, (FrameworkElement)startup.Content, "startup-before-loaded.png");
+        gate.Wait();
+        try
+        {
+            startup.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            SpinUntil(() => string.Equals((string?)Field(startup, "_current"), image, StringComparison.OrdinalIgnoreCase), TimeSpan.FromSeconds(10));
+            Check((bool)Field(startup, "_loading") && surface.Document is null && panel.Visibility == Visibility.Collapsed,
+                "A delayed first decode must keep the welcome page hidden while loading.");
+            SaveReviewPng(startup, (FrameworkElement)startup.Content, "startup-opening.png");
+        }
+        finally { gate.Release(); }
+        SpinUntil(() => !(bool)Field(startup, "_loading"), TimeSpan.FromSeconds(10));
+        Check(surface.Document is not null && panel.Visibility == Visibility.Collapsed,
+            "The Loaded handler must open the actual requested file, including spaces in its path.");
+        SaveReviewPng(startup, (FrameworkElement)startup.Content, "startup-image.png");
+
+        Pump(InvokeAsync(startup, "OpenPaths", (object)new[] { broken }));
+        Check(surface.Document is null && panel.Visibility == Visibility.Visible && (string?)Field(startup, "_error") is not null,
+            "A corrupt image must show its recovery state after loading fails.");
+        var recovery = InvokeAsync(startup, "OpenPaths", (object)new[] { image });
+        Check(panel.Visibility == Visibility.Collapsed, "Opening another file must immediately dismiss the previous error page.");
+        Pump(recovery);
+        Check(surface.Document is not null && panel.Visibility == Visibility.Collapsed, "A valid image must recover from a failed open.");
+        startup.Close();
+
+        var missing = new MainWindow(new Preferences(Path.Combine(directory, "missing-settings.json")) { Language = "zh" }, [Path.Combine(directory, "missing.png")]);
+        Check(((FrameworkElement)Field(missing, "EmptyPanel")).Visibility == Visibility.Collapsed, "Missing startup paths must not flash the welcome page either.");
+        missing.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+        SpinUntil(() => !(bool)Field(missing, "_loading"), TimeSpan.FromSeconds(10));
+        Check(((FrameworkElement)Field(missing, "EmptyPanel")).Visibility == Visibility.Visible && ((TextBlock)Field(missing, "EmptyTitle")).Text == "图片已不存在",
+            "A missing startup image must end in the specific recoverable error state.");
+        missing.Close();
     }
 
     private static void VerifyLayout(MainWindow window)

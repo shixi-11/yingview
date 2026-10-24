@@ -2,7 +2,7 @@
 
 YingView is a local-first image viewer for Windows 10 and 11. Open a picture or drop in a folder to browse it in a large, uncluttered window. It is built with .NET 10 and WPF, with image decoding provided by Magick.NET 15. Download the English build for the YingView name and English interface, or the Simplified Chinese build for the 映窗 name and Chinese interface.
 
-**Version:** 0.3.7 Preview · **Architecture:** x64
+**Version:** 0.3.8 Preview · **Architecture:** x64
 
 [简体中文](README.zh-CN.md) · [Download from GitHub Releases](https://github.com/shixi-11/yingview/releases) · [Theme guide](docs/themes.md)
 

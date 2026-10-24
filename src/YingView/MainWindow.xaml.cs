@@ -46,11 +46,15 @@ public partial class MainWindow : Window
     private string T(string zh, string en) => _settings.Language == "zh" ? zh : en;
     internal bool IsChinese => _settings.Language == "zh";
 
-    public MainWindow() : this(Preferences.Load()) { }
-    internal MainWindow(Preferences preferences)
+    public MainWindow() : this(Preferences.Load(), App.Arguments) { }
+    internal MainWindow(Preferences preferences, string[]? startupArguments = null)
     {
         _settings = preferences;
+        var startupPaths = (startupArguments ?? []).Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
         InitializeComponent();
+        // Set the initial content before the window can render, including slow folder scans.
+        _loading = startupPaths.Length > 0;
+        EmptyPanel.Visibility = _loading ? Visibility.Collapsed : Visibility.Visible;
         // This window only views images; text editing lives in separate dialogs.
         // Keep Chinese IMEs from consuming single-letter viewing shortcuts such as B/F/R.
         InputMethod.SetIsInputMethodEnabled(this, false);
@@ -70,8 +74,7 @@ public partial class MainWindow : Window
         {
             WindowState = WindowState.Maximized;
             ApplyChrome();
-            var paths = App.Arguments.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
-            if (paths.Length > 0) await OpenPaths(paths);
+            if (startupPaths.Length > 0) await OpenPaths(startupPaths);
             Surface.Focus();
         };
         Closing += (_, _) =>
@@ -276,7 +279,8 @@ public partial class MainWindow : Window
         if (paths.Length == 0 || _deleting) return;
         var openGeneration = ++_openGeneration;
         ++_generation; // A slow decode for the previous selection must not overwrite this open request.
-        _loading = false;
+        _loading = true;
+        EmptyPanel.Visibility = Visibility.Collapsed;
         UpdateStatus();
         try
         {
@@ -341,6 +345,7 @@ public partial class MainWindow : Window
         Toast.Visibility = Visibility.Collapsed; _toastTimer.Stop();
         var path = _files[_index]; var generation = ++_generation;
         _current = path; _loading = true; _error = null;
+        EmptyPanel.Visibility = Visibility.Collapsed;
         _currentFileMissing = false;
         Title = Path.GetFileName(path) + " · " + T("映窗", "YingView");
         UpdateStatus(); _ = BuildThumbnails();
