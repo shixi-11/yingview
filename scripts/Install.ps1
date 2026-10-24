@@ -58,7 +58,7 @@ Set-Item -Path "$appKey\DefaultIcon" -Value ('"' + $installed + '",0')
 New-Item -Path "$appKey\shell\open\command" -Force | Out-Null
 Set-Item -Path "$appKey\shell\open\command" -Value ('"' + $installed + '" "%1"')
 New-Item -Path "$appKey\SupportedTypes" -Force | Out-Null
-foreach ($ext in @('.png','.jpg','.jpeg','.gif','.webp','.avif','.bmp','.tif','.tiff','.ico','.heic','.heif')) {
+foreach ($ext in @('.png','.jpg','.jpeg','.gif','.webp','.avif','.bmp','.tif','.tiff','.ico')) {
     New-ItemProperty -Path "$appKey\SupportedTypes" -Name $ext -Value '' -PropertyType String -Force | Out-Null
     $openWith = "HKCU:\Software\Classes\$ext\OpenWithProgids"
     New-Item -Path $openWith -Force | Out-Null
@@ -70,7 +70,7 @@ New-Item -Path "$capabilities\FileAssociations" -Force | Out-Null
 New-ItemProperty -Path $capabilities -Name ApplicationName -Value $displayName -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $capabilities -Name ApplicationIcon -Value ('"' + $installed + '",0') -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $capabilities -Name ApplicationDescription -Value $(if ($language -eq 'zh-CN') { '本地图片查看与对照审阅' } else { 'Local image viewing and comparison' }) -PropertyType String -Force | Out-Null
-foreach ($ext in @('.png','.jpg','.jpeg','.gif','.webp','.avif','.bmp','.tif','.tiff','.ico','.heic','.heif')) {
+foreach ($ext in @('.png','.jpg','.jpeg','.gif','.webp','.avif','.bmp','.tif','.tiff','.ico')) {
     New-ItemProperty -Path "$capabilities\FileAssociations" -Name $ext -Value "YingView.$language" -PropertyType String -Force | Out-Null
 }
 New-Item -Path 'HKCU:\Software\RegisteredApplications' -Force | Out-Null

@@ -4,29 +4,34 @@ using System.Windows.Documents;
 
 namespace YingView.Files;
 
-/// <summary>Starts the supported Windows flow and checks the actual result on return.</summary>
+/// <summary>Confirms standalone bulk setup, or opens the supported packaged Windows flow.</summary>
 public sealed class DefaultAppsWindow : Window
 {
     private readonly string _language;
     private readonly bool _zh;
     private readonly Func<string, DefaultAppService.OpenResult> _openSettings;
     private readonly Func<string, IReadOnlyList<DefaultAppService.Association>> _readAssociations;
+    private readonly Func<string, DefaultAppService.BatchResult>? _setAllDefaults;
+    private readonly bool _batch;
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 16) };
     private readonly StackPanel _formats = new();
     private readonly TextBlock _message = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 18) };
     private readonly Button _openButton;
-    private bool _started, _opening, _waiting, _launchFailed, _allSet;
+    private bool _started, _opening, _waiting, _launchFailed, _allSet, _batchAttempted;
     private string T(string zh, string en) => _zh ? zh : en;
 
     public DefaultAppsWindow(string language, bool startImmediately = false)
-        : this(language, startImmediately, DefaultAppService.RegisterAndOpen, DefaultAppService.GetAssociations) { }
+        : this(language, startImmediately, DefaultAppService.RegisterAndOpen, DefaultAppService.GetAssociations,
+            DefaultAppService.SetAllDefaults, DefaultAppService.SupportsBatchSetup) { }
 
     internal DefaultAppsWindow(string language, bool startImmediately,
         Func<string, DefaultAppService.OpenResult> openSettings,
-        Func<string, IReadOnlyList<DefaultAppService.Association>> readAssociations)
+        Func<string, IReadOnlyList<DefaultAppService.Association>> readAssociations,
+        Func<string, DefaultAppService.BatchResult>? setAllDefaults = null, bool batch = false)
     {
         _language = language; _zh = language == "zh";
         _openSettings = openSettings; _readAssociations = readAssociations;
+        _setAllDefaults = setAllDefaults; _batch = batch;
         Title = T("默认看图软件", "Default image viewer");
         Width = 520; Height = 330; MinWidth = 460; MinHeight = 300;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -58,20 +63,30 @@ public sealed class DefaultAppsWindow : Window
         {
             if (_started) return;
             _started = true;
-            if (startImmediately && !_allSet) StartSetup();
+            if (startImmediately && !_allSet && !_batch) StartSetup();
         };
         Refresh();
     }
 
-    private void StartSetup()
+    private async void StartSetup()
     {
         if (_opening || _allSet) return;
         _opening = true; _openButton.IsEnabled = false;
+        Refresh();
         try
         {
-            var result = _openSettings(_language);
-            _waiting = result.SettingsLaunchSucceeded;
-            _launchFailed = !result.SettingsLaunchSucceeded;
+            if (_batch)
+            {
+                _batchAttempted = true;
+                var result = await Task.Run(() => _setAllDefaults!(_language));
+                _launchFailed = !result.AllSet;
+            }
+            else
+            {
+                var result = _openSettings(_language);
+                _waiting = result.SettingsLaunchSucceeded;
+                _launchFailed = !result.SettingsLaunchSucceeded;
+            }
         }
         catch { _waiting = false; _launchFailed = true; }
         finally { _opening = false; Refresh(); }
@@ -94,8 +109,15 @@ public sealed class DefaultAppsWindow : Window
             _formats.Children.Add(row);
         }
         _openButton.IsEnabled = !_opening && !_allSet;
-        _openButton.Content = _allSet ? T("已设为默认", "Set as default") : T("设为默认", "Set as default");
-        _message.Text = _allSet ? T("支持的图片格式现在会默认用映窗打开。", "Supported image formats now open with YingView by default.")
+        _openButton.Content = _opening ? T("正在设置…", "Setting up…")
+            : _allSet ? T("已设为默认", "Set as default")
+            : _batch ? T(_batchAttempted ? "重试全部设置" : "确认并设置全部", _batchAttempted ? "Retry setup" : "Confirm and set all")
+            : T("设为默认", "Set as default");
+        _message.Text = _opening ? T("正在设置图片关联并检查结果，请稍候。", "Setting image associations and checking the result. Please wait.")
+            : _allSet ? T("支持的图片格式现在会默认用映窗打开。", "Supported image formats now open with YingView by default.")
+            : _batch ? (_launchFailed
+                ? T("部分格式未能完成设置，请重试。", "Some formats could not be set. Please try again.")
+                : T($"确认后，将把 {associations.Count} 种图片格式设为默认用映窗打开：\nPNG、JPG、JPEG、GIF、WebP、AVIF、BMP、TIF、TIFF、ICO。", $"Confirm to open all {associations.Count} supported image formats with YingView by default:\nPNG, JPG, JPEG, GIF, WebP, AVIF, BMP, TIF, TIFF, ICO."))
             : _launchFailed ? T("未能打开系统设置，请重试。也可在 Windows“应用 → 默认应用”中选择映窗。", "Windows Settings could not open. Try again, or choose YingView under Apps → Default apps.")
             : _waiting ? T("请在 Windows 中选择映窗并确认。返回这里时，结果会自动更新。", "Choose YingView in Windows and confirm. The result updates automatically when you return.")
             : T("点击“设为默认”开始。Windows 会要求你确认，结果会自动更新。", "Select Set as default to begin. Windows will ask you to confirm, and the result updates automatically.");

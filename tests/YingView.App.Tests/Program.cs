@@ -18,8 +18,27 @@ internal static class Program
     private static readonly string Output = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "output", "app-tests"));
 
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
+        if (args.Length == 3 && args[0] == "--report-defaults")
+        {
+            File.WriteAllText(Path.GetFullPath(args[2]), System.Text.Json.JsonSerializer.Serialize(
+                new { Windows = Environment.OSVersion.VersionString, Associations = DefaultAppService.GetAssociations(args[1]) },
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            return 0;
+        }
+        // Explicit local opt-in only: this mode changes the signed-in user's real image defaults.
+        if (args.Length == 3 && args[0] == "--set-defaults-for-installed-client")
+        {
+            var plan = DefaultAppService.CreateRegistrationPlan("zh", Path.GetFullPath(args[1]));
+            var before = DefaultAppService.GetAssociations("zh");
+            var result = DefaultAppService.SetAllDefaults(plan);
+            File.WriteAllText(Path.GetFullPath(args[2]), System.Text.Json.JsonSerializer.Serialize(new
+                { Windows = Environment.OSVersion.VersionString, Before = before, Result = result },
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            Console.WriteLine($"Verified {result.Associations.Count(a => a.IsYingView)}/{result.Associations.Count} image defaults. Backup: {result.BackupPath}");
+            return result.AllSet ? 0 : 1;
+        }
         VerifyDefaultAppPlan();
         if (string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase))
         {
@@ -157,6 +176,45 @@ internal static class Program
         failed.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
         Check(((Button)Field(failed, "_openButton")).IsEnabled && ((TextBlock)Field(failed, "_message")).Text.Contains("could not open"), "A failed system launch must remain retryable and must not claim that defaults changed.");
         failed.Close();
+
+        count = 0; var applied = 0;
+        using var releaseBatch = new ManualResetEventSlim(false);
+        var standalone = new DefaultAppsWindow("zh", true, _ => throw new Exception("Standalone setup must not launch Settings."), Snapshot,
+            _ =>
+            {
+                Interlocked.Increment(ref applied);
+                releaseBatch.Wait();
+                count = 4;
+                return new DefaultAppService.BatchResult(Snapshot("zh"), "test-backup.json", new Dictionary<string, string>());
+            }, batch: true);
+        standalone.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+        Check(applied == 0 && ((Button)Field(standalone, "_openButton")).Content.ToString()!.Contains("确认"),
+            "Standalone setup must wait for the one explicit confirmation, even when opened from the menu.");
+        SaveWindowContentReviewPng(standalone, "default-apps-confirm-zh.png", 520, 330);
+        ((Button)Field(standalone, "_openButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        InvokeVoid(standalone, "StartSetup");
+        Check(!((Button)Field(standalone, "_openButton")).IsEnabled, "Setup must disable duplicate confirmations while working.");
+        releaseBatch.Set();
+        var batchDeadline = DateTime.UtcNow.AddSeconds(5);
+        while ((bool)Field(standalone, "_opening") && DateTime.UtcNow < batchDeadline)
+        {
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Background);
+            Thread.Sleep(10);
+        }
+        Check(applied == 1 && ((TextBlock)Field(standalone, "_status")).Text.Contains("4/10")
+            && ((TextBlock)Field(standalone, "_message")).Text.Contains("部分"),
+            "One confirmation must invoke a single bulk operation and must accurately report partial failure.");
+        count = 10;
+        InvokeVoid(standalone, "OnActivated", EventArgs.Empty);
+        Check(!((Button)Field(standalone, "_openButton")).IsEnabled, "All effective defaults must finish standalone setup.");
+        standalone.Close();
+
+        count = 0;
+        var english = new DefaultAppsWindow("en", false, _ => throw new Exception(), Snapshot,
+            _ => throw new Exception(), batch: true);
+        SaveWindowContentReviewPng(english, "default-apps-confirm-en.png", 520, 330);
+        Check(((TextBlock)Field(english, "_message")).Text.Contains("Confirm to open all 10"), "The English download must offer the same explicit bulk confirmation.");
+        english.Close();
     }
 
     private static void VerifyClientLanguageBranding(MainWindow englishWindow, Preferences englishSettings)

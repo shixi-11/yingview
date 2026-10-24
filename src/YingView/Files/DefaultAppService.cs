@@ -3,10 +3,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 
 namespace YingView.Files;
 
-/// <summary>Registers YingView as a per-user candidate and opens Windows Default Apps settings.</summary>
+/// <summary>Registers, sets and verifies per-user image associations.</summary>
 public static class DefaultAppService
 {
     private static readonly string[] SupportedExtensions =
@@ -17,6 +18,70 @@ public static class DefaultAppService
         string ExecutablePath, IReadOnlyList<string> Extensions);
     public sealed record OpenResult(bool RegistrationSucceeded, bool SettingsLaunchSucceeded, string SettingsUri,
         string? Error = null);
+    public sealed record BatchResult(IReadOnlyList<Association> Associations, string BackupPath,
+        IReadOnlyDictionary<string, string> Errors)
+    {
+        public bool AllSet => Associations.Count > 0 && Associations.All(a => a.IsYingView);
+    }
+    private sealed record PreviousAssociation(string Extension, string? EffectiveProgId,
+        string? ClassicProgId, string? UserChoiceProgId);
+
+    // Store packages use the supported Windows Settings flow instead of registry compatibility writes.
+    public static bool SupportsBatchSetup => GetCurrentPackageFamilyName() is null;
+
+    /// <summary>Call only after explicit user confirmation. No elevation or system-protection changes.</summary>
+    public static BatchResult SetAllDefaults(string language) => SetAllDefaults(CreateRegistrationPlan(language,
+        Environment.ProcessPath ?? throw new InvalidOperationException("Cannot determine the executable path.")));
+
+    internal static BatchResult SetAllDefaults(RegistrationPlan plan)
+    {
+        if (!SupportsBatchSetup) throw new InvalidOperationException("Packaged apps must use Windows Settings.");
+        if (!File.Exists(plan.ExecutablePath)) throw new FileNotFoundException("The viewer executable is missing.", plan.ExecutablePath);
+
+        var previous = plan.Extensions.Select(extension =>
+        {
+            using var classic = Registry.CurrentUser.OpenSubKey($@"Software\Classes\{extension}");
+            using var choice = Registry.CurrentUser.OpenSubKey($@"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\{extension}\UserChoice");
+            return new PreviousAssociation(extension, QueryEffectiveProgId(extension),
+                classic?.GetValue("") as string, choice?.GetValue("ProgId") as string);
+        }).ToArray();
+        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YingView", "Associations");
+        Directory.CreateDirectory(folder);
+        var backupPath = Path.Combine(folder, $"{DateTime.UtcNow:yyyyMMdd-HHmmss-fffffff}.json");
+        // Save before changing any associations. Protected UserChoice hashes are deliberately not replayed.
+        File.WriteAllText(backupPath, JsonSerializer.Serialize(new { CreatedUtc = DateTime.UtcNow, plan, Previous = previous },
+            new JsonSerializerOptions { WriteIndented = true }));
+        RegisterCandidate(plan);
+        var errors = new Dictionary<string, string>();
+        foreach (var old in previous)
+        {
+            if (string.Equals(old.EffectiveProgId, plan.ProgId, StringComparison.OrdinalIgnoreCase)) continue;
+            try
+            {
+                using (var extensionKey = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{old.Extension}", true)!)
+                    extensionKey.SetValue("", plan.ProgId, RegistryValueKind.String);
+                // Removing a stale per-user choice lets Windows resolve the classic extension mapping.
+                // Request deletion via its parent; do not change permissions or disable protection if refused.
+                using var parent = Registry.CurrentUser.OpenSubKey(
+                    $@"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\{old.Extension}", writable: true);
+                parent?.DeleteSubKey("UserChoice", throwOnMissingSubKey: false);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException)
+            {
+                errors[old.Extension] = ex.Message;
+            }
+        }
+        SHChangeNotify(0x08000000, 0x1000, IntPtr.Zero, IntPtr.Zero); // SHCNE_ASSOCCHANGED, SHCNF_FLUSH
+        var associations = GetAssociations(plan.Language);
+        for (var attempt = 0; attempt < 8 && associations.Any(a => !a.IsYingView); attempt++)
+        {
+            Thread.Sleep(250);
+            associations = GetAssociations(plan.Language);
+        }
+        foreach (var association in associations.Where(a => !a.IsYingView))
+            errors.TryAdd(association.Extension, "Windows retained another effective default application.");
+        return new BatchResult(associations, backupPath, errors);
+    }
 
     /// <summary>Pure, deterministic plan suitable for unit tests; accepts an explicit executable path.</summary>
     public static RegistrationPlan CreateRegistrationPlan(string language, string executablePath)

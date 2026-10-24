@@ -2,7 +2,7 @@
 
 YingView is a local-first image viewer for Windows 10 and 11. Open a picture or drop in a folder to browse it in a large, uncluttered window. It is built with .NET 10 and WPF, with image decoding provided by Magick.NET 15. Download the English build for the YingView name and English interface, or the Simplified Chinese build for the 映窗 name and Chinese interface.
 
-**Version:** 0.3.1 Preview · **Architecture:** x64
+**Version:** 0.3.2 Preview · **Architecture:** x64
 
 [简体中文](README.zh-CN.md) · [Download from GitHub Releases](https://github.com/shixi-11/yingview/releases) · [Theme guide](docs/themes.md)
 
@@ -18,7 +18,7 @@ YingView is a local-first image viewer for Windows 10 and 11. Open a picture or 
 
 The appearance editor now shows visual preset cards, color swatches, and a live text preview. Comparison controls follow the interface text-size setting. Empty folders, damaged files, and externally moved images clear the previous selection and offer a way to recover; **F5** refreshes the selected image or reopens its folder when it has moved.
 
-Choose **More → Set as default image viewer** to start the Windows setup flow directly. Confirm your choice in Windows; the app automatically checks the effective associations when you return. Format details can be expanded. Opening Windows Settings is reported separately from successfully changing a default.
+In the standalone client, choose **More → Set as default image viewer**, then **Confirm and set all** to apply all 10 supported image formats together. The app checks the effective Windows associations and reports any formats that could not be changed. Packaged clients use the Windows Settings flow.
 
 ## macOS preview
 
@@ -32,7 +32,7 @@ YingView opens and compares images locally. Viewing, rotating, and mirroring do 
 
 ## Download and build
 
-This repository contains the 0.3.1 Preview source for Windows x64. Check the version on [GitHub Releases](https://github.com/shixi-11/yingview/releases) for the builds currently available to download; a source update does not automatically publish new download assets. The Microsoft Store submission has not been made.
+This repository contains the 0.3.2 Preview source for Windows x64. Check the version on [GitHub Releases](https://github.com/shixi-11/yingview/releases) for the builds currently available to download; a source update does not automatically publish new download assets. The Microsoft Store submission has not been made.
 
 Choose the download whose language matches your preference. The selected build also determines the app name, icon, and installed shortcut language.
 
