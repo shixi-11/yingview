@@ -22,7 +22,7 @@ public sealed class UpdateService : IDisposable
     private readonly bool _ownsClient;
     private readonly TimeSpan _checkTimeout;
     private readonly string _downloadDirectory;
-    private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(60);
     private const long MaxInstallerBytes = 512L * 1024 * 1024;
 
     public UpdateService(HttpMessageHandler? handler = null, TimeSpan? timeout = null, string? downloadDirectory = null)
@@ -97,6 +97,7 @@ public sealed class UpdateService : IDisposable
             if (response.Content.Headers.ContentLength is > MaxInstallerBytes)
                 throw new InvalidDataException("The installer exceeds the 512 MiB download limit.");
             long received = 0;
+            var lastReportedPercent = -1;
             await using (var input = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false))
             await using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
             {
@@ -108,7 +109,15 @@ public sealed class UpdateService : IDisposable
                     received += count;
                     if (received > MaxInstallerBytes) throw new InvalidDataException("The installer exceeds the 512 MiB download limit.");
                     await output.WriteAsync(buffer.AsMemory(0, count), timeout.Token).ConfigureAwait(false);
-                    if (response.Content.Headers.ContentLength is long total && total > 0) progress?.Report(Math.Clamp((double)received / total, 0, 1));
+                    if (response.Content.Headers.ContentLength is long total && total > 0)
+                    {
+                        var percent = (int)Math.Clamp(Math.Floor((double)received / total * 100), 0, 100);
+                        if (percent != lastReportedPercent)
+                        {
+                            lastReportedPercent = percent;
+                            progress?.Report(percent / 100d);
+                        }
+                    }
                 }
             }
             string hash;

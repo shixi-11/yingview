@@ -39,8 +39,16 @@ internal static class UpdateAssertions
         Require((await service.CheckAsync(new Version(0,3,15),"en")).Status==UpdateCheckStatus.UpToDate,"Updates must not downgrade the viewer.");
         var count=calls.Count;
         Require((await service.CheckAsync(new Version(0,3,13),"zh",storeManaged:true)).Status==UpdateCheckStatus.StoreManaged && calls.Count==count,"Store clients must not use standalone updates.");
-        var downloaded=await service.DownloadVerifiedAsync(result);
+        var percentages=new List<double>();
+        var downloaded=await service.DownloadVerifiedAsync(result,progress:new InlineProgress(value=>percentages.Add(value)));
         Require(File.ReadAllBytes(downloaded.FilePath).SequenceEqual(bytes) && downloaded.Sha256==digest[7..] && calls.Any(c=>c.Host=="release-assets.githubusercontent.com"),"A GitHub CDN download must be verified, closed and finalized successfully.");
+        Require(percentages.Count>0 && percentages[^1]==1 && percentages.All(p=>p is >=0 and <=1),"Download progress must reach 100% and stay within its bounds.");
+        using(var canceled=new CancellationTokenSource())
+        {
+            canceled.Cancel();
+            try {await service.DownloadVerifiedAsync(result,canceled.Token);throw new Exception("Canceled downloads must stop.");}
+            catch(OperationCanceledException) { }
+        }
         Require((await service.CheckAsync(new Version(0,3,13),"en")).AssetName=="YingView-en-US.exe","English clients must not receive Chinese builds.");
         using var mismatch=new UpdateService(new Handler(_=>new(HttpStatusCode.OK){Content=new ByteArrayContent([1,2,3])}), downloadDirectory:Path.Combine(output,"updates","mismatch"));
         await Reject(()=>mismatch.DownloadVerifiedAsync(result),"A bad digest must stop installation.");
@@ -60,6 +68,7 @@ internal static class UpdateAssertions
         Console.WriteLine("Update matching, CDN download, digest rejection, downgrade prevention and installation payload checks passed.");
     }
     private static void Require(bool value,string message) {if(!value)throw new InvalidOperationException(message);}
+    private sealed class InlineProgress(Action<double> report):IProgress<double> {public void Report(double value)=>report(value);}
     private static async Task Reject(Func<Task> action,string message) {try{await action();}catch{return;}throw new InvalidOperationException(message);}
     private sealed class Handler(Func<HttpRequestMessage,HttpResponseMessage> respond):HttpMessageHandler {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken cancellationToken) {

@@ -10,7 +10,7 @@
 - [ ] Complete the free price and availability settings, app category, capabilities, and age-rating questionnaire in Partner Center.
 - [ ] Prepare localized en-US and zh-CN listing metadata and screenshots. At least one screenshot is required; desktop screenshots must be PNG and at least 1366 x 768. The package/store logo requirements must also be met.
 - [ ] Build the Release standalone client and confirm `ClientDirectory` contains `YingView.exe`, the official source `LICENSE`, `NOTICE`, `THIRD-PARTY-NOTICES.md`, `CLIENT-LICENSE.txt`, `CLIENT-LICENSE.zh-CN.txt`, `LICENSING.md`, and the complete published runtime files.
-- [ ] Choose a four-part package version ending in `.0` that matches the app release (the current app version is `0.3.13`, so its package version is `0.3.13.0`).
+- [ ] Choose a four-part package version ending in `.0` that matches the app release (the current app version is `0.3.14`, so its package version is `0.3.14.0`).
 
 ## Create and inspect the package
 
@@ -23,7 +23,7 @@ First build the universal Store client with `./scripts/build.ps1 -ClientLanguage
   -IdentityName '<reserved identity name>' `
   -Publisher '<exact Partner Center publisher string>' `
   -PublisherDisplayName '<public publisher name>' `
-  -Version '0.3.13.0' `
+  -Version '0.3.14.0' `
   -ClientDirectory '.\dist\YingView-auto' `
   -OutputDirectory '.\output\store'
 ```

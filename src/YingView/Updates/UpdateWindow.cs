@@ -17,6 +17,7 @@ public sealed class UpdateWindow : Window
     private readonly bool _storeManaged;
     private readonly TextBlock _status;
     private readonly TextBlock _details;
+    private readonly ProgressBar _downloadProgress;
     private readonly Button _releaseNotes;
     private readonly Button _primary;
     private readonly Button _cancel;
@@ -63,6 +64,10 @@ public sealed class UpdateWindow : Window
         _status.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush"); body.Children.Add(_status);
         _details = new TextBlock { TextWrapping = TextWrapping.Wrap, LineHeight = 20 };
         _details.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush"); body.Children.Add(_details);
+        _downloadProgress = new ProgressBar { Minimum = 0, Maximum = 1, Height = 6, Margin = new Thickness(0, 12, 0, 4), Visibility = Visibility.Collapsed };
+        _downloadProgress.SetResourceReference(Control.ForegroundProperty, "AccentBrush");
+        _downloadProgress.SetResourceReference(Control.BackgroundProperty, "BarBrush");
+        body.Children.Add(_downloadProgress);
         _releaseNotes = new Button { Content = T("查看版本说明", "View release notes"), HorizontalAlignment = HorizontalAlignment.Left,
             Padding = new Thickness(0, 8, 8, 4), Visibility = Visibility.Collapsed };
         _releaseNotes.SetResourceReference(Control.ForegroundProperty, "AccentBrush");
@@ -162,19 +167,30 @@ public sealed class UpdateWindow : Window
 
     private async Task DownloadAsync()
     {
-        BeginOperation(T("正在下载并验证…", "Downloading and verifying…"), T("下载完成后会核对官方 SHA-256。", "The official SHA-256 digest will be checked after download."));
+        BeginOperation(T("正在下载并验证… 0%", "Downloading and verifying… 0%"), T("下载完成后会检查文件是否完整。", "The file will be checked for integrity after the download completes."));
+        _downloadProgress.Value = 0;
+        _downloadProgress.Visibility = Visibility.Visible;
+        var progress = new Progress<double>(ratio =>
+        {
+            if (!_busy) return;
+            ratio = Math.Clamp(ratio, 0, 1);
+            _downloadProgress.Value = ratio;
+            _status.Text = T($"正在下载并验证… {ratio:P0}", $"Downloading and verifying… {ratio:P0}");
+        });
         var token = _operation!.Token;
         try
         {
-            _download = await _service.DownloadVerifiedAsync(_available!, token);
+            _download = await _service.DownloadVerifiedAsync(_available!, token, progress);
+            _downloadProgress.Visibility = Visibility.Collapsed;
             _status.Text = T("更新已下载并验证。", "The update was downloaded and verified.");
             _details.Text = T("可以安装此更新并重启映窗。", "This update is ready to install and restart YingView.");
             _primary.Content = T("安装并重启", "Install and restart");
             _primary.IsEnabled = InstallAndRestartRequested is not null;
         }
-        catch (OperationCanceledException) { _status.Text = T("下载已取消。", "Download canceled."); _details.Text = T("可以重试下载。", "You can try the download again."); _primary.Content = T("重试下载", "Retry download"); }
+        catch (OperationCanceledException) { _downloadProgress.Visibility = Visibility.Collapsed; _status.Text = T("下载已取消。", "Download canceled."); _details.Text = T("可以重试下载。", "You can try the download again."); _primary.Content = T("重试下载", "Retry download"); }
         catch
         {
+            _downloadProgress.Visibility = Visibility.Collapsed;
             _download = null;
             _status.Text = T("下载或完整性校验失败。", "Download or integrity check failed.");
             _details.Text = T("安装程序未通过验证，请重试。", "The installer did not pass verification. Please try again.");
@@ -186,6 +202,7 @@ public sealed class UpdateWindow : Window
     private void BeginOperation(string status, string details)
     {
         _busy = true; _operation?.Dispose(); _operation = new CancellationTokenSource();
+        _downloadProgress.Visibility = Visibility.Collapsed;
         _status.Text = status; _details.Text = details;
         _primary.IsEnabled = false; _cancel.Content = T("取消", "Cancel"); _cancel.IsEnabled = true;
     }

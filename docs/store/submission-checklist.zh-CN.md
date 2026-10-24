@@ -10,7 +10,7 @@
 - [ ] 在Partner Center设置免费定价与销售范围、应用类别、功能声明并完成年龄分级问卷。
 - [ ] 准备en-US和zh-CN本地化商店资料与截图。至少需要一张截图；桌面截图须为PNG且至少1366×768，并满足商店标志资源要求。
 - [ ] 构建Release独立版客户端，确认`ClientDirectory`包含`YingView.exe`、官方源码`LICENSE`、`NOTICE`、`THIRD-PARTY-NOTICES.md`、`CLIENT-LICENSE.txt`、`CLIENT-LICENSE.zh-CN.txt`、`LICENSING.md`和完整的发布运行文件。
-- [ ] 选择与应用版本一致、以`.0`结尾的四段版本号（当前应用版本为`0.3.13`，程序包版本应为`0.3.13.0`）。
+- [ ] 选择与应用版本一致、以`.0`结尾的四段版本号（当前应用版本为`0.3.14`，程序包版本应为`0.3.14.0`）。
 
 ## 创建并检查程序包
 
@@ -23,7 +23,7 @@
   -IdentityName '<已预留的程序包身份名称>' `
   -Publisher '<Partner Center中的准确Publisher字符串>' `
   -PublisherDisplayName '<公开显示的发布者名称>' `
-  -Version '0.3.13.0' `
+  -Version '0.3.14.0' `
   -ClientDirectory '.\dist\YingView-auto' `
   -OutputDirectory '.\output\store'
 ```
