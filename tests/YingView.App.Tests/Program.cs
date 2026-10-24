@@ -133,6 +133,7 @@ internal static class Program
         try
         {
             VerifyClientLanguageBranding(window, settings);
+            VerifyFreeClientTerms(window, settings);
             VerifyLayout(window);
             YingView.AppTests.BackgroundAssertions.Run(window, Output);
             var originalBackground = settings.Background;
@@ -597,7 +598,7 @@ internal static class Program
     {
         var original = settings.Theme;
         var scalePreviews = new List<double>();
-        var studio = new StyleStudioWindow(settings, _ => { }, scale => scalePreviews.Add(scale), _ => { }, true);
+        var studio = new StyleStudioWindow(settings, _ => { }, scale => scalePreviews.Add(scale), _ => { });
         var cancel = FindButton(studio, "Cancel");
         Check(cancel is not null, "Style studio should expose its cancel action.");
         var slider = (Slider)Field(studio, "_scale");
@@ -665,18 +666,48 @@ internal static class Program
         var path = Path.Combine(Output, "settings", "style-apply.json");
         var settings = new Preferences(path) { Language = "zh", AppearanceUiVersion = 2 };
         ViewerTheme? preview = null;
-        var studio = new StyleStudioWindow(settings, theme => preview = theme, _ => { }, _ => { }, false);
+        var studio = new StyleStudioWindow(settings, theme => preview = theme, _ => { }, _ => { });
+        Check(FindButton(studio, "我的风格")?.IsEnabled == true, "The personal style library must be available without an entitlement.");
         InvokeVoid(studio, "SetTheme", ViewerTheme.BuiltIn[2]);
         ((TextBox)Field(studio, "_name")).Text = "山间苔色";
         ((Slider)Field(studio, "_scale")).Value = 1.15;
         ((CheckBox)Field(studio, "_compact")).IsChecked = true;
+        var library = studio.CreateLibraryWindow();
+        var list = ((DockPanel)library.Content).Children.OfType<ListBox>().Single();
+        FindButton(library, "保存当前")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(list.Items.Cast<string>().Contains("山间苔色"), "A free client must be able to save a personal style.");
+        InvokeVoid(studio, "SetTheme", ViewerTheme.BuiltIn[0]);
+        list.SelectedItem = "山间苔色";
+        FindButton(library, "载入")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(((TextBox)Field(studio, "_name")).Text == "山间苔色", "A free client must be able to load a saved style.");
+        library.Close();
         SaveWindowContentReviewPng(studio, "style-studio-zh.png", 704, 760);
         Check(preview?.Name == "山间苔色", "Renaming a theme must update its live preview.");
         InvokeVoid(studio, "Apply");
         var saved = System.Text.Json.JsonSerializer.Deserialize<Preferences>(File.ReadAllText(path))!;
         Check(studio.Applied && saved.Theme.Name == "山间苔色" && saved.Theme.Canvas == ViewerTheme.BuiltIn[2].Canvas
-            && Math.Abs(saved.TextScale - 1.15) < 0.001 && saved.CompactToolbar,
+            && Math.Abs(saved.TextScale - 1.15) < 0.001 && saved.CompactToolbar && saved.PersonalStyles.Any(s => s.Name == "山间苔色"),
             "Apply must persist custom name, colors, text size, and compact layout without a Pro entitlement.");
+    }
+
+    private static void VerifyFreeClientTerms(MainWindow window, Preferences settings)
+    {
+        var language = settings.Language;
+        try
+        {
+            foreach (var code in new[] { "en", "zh" })
+            {
+                settings.Language = code;
+                InvokeVoid(window, "BuildMenu");
+                var labels = ((MenuItem)Field(window, "MoreMenu")).Items.OfType<MenuItem>().Select(i => i.Header?.ToString() ?? "").ToArray();
+                Check(labels.Contains(code == "zh" ? "外观设置…" : "Appearance…") && !labels.Any(s => s.Contains("Pro") || s.Contains("专业版")),
+                    "The current release must expose appearance settings without a paid-plan entry.");
+                var terms = window.GetLicenseText();
+                Check(terms.Contains(code == "zh" ? "免费个人及商业使用" : "Free personal and commercial use") && terms.Contains("PolyForm Noncommercial License 1.0.0")
+                    && terms.Contains(code == "zh" ? "书面" : "separate written permission"), "Both client languages must embed the commercial-use grant and separate source terms.");
+            }
+        }
+        finally { settings.Language = language; InvokeVoid(window, "BuildMenu"); }
     }
 
     private static double ZoomRatio(ImageSurface surface)

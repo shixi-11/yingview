@@ -19,7 +19,7 @@ if ($KeepRunningVersion) {
     $destination = Join-Path $destination "versions/$version"
 }
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
-foreach ($file in @('YingView.exe','LICENSE','NOTICE','THIRD-PARTY-NOTICES.md')) {
+foreach ($file in @('YingView.exe','LICENSE','NOTICE','CLIENT-LICENSE.txt','CLIENT-LICENSE.zh-CN.txt','LICENSING.md','THIRD-PARTY-NOTICES.md')) {
     $from = Join-Path $Source $file
     $to = Join-Path $destination $file
     if ((Test-Path -LiteralPath $from) -and ([IO.Path]::GetFullPath($from) -ne [IO.Path]::GetFullPath($to))) { Copy-Item -LiteralPath $from -Destination $to -Force }

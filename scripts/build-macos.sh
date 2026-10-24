@@ -40,7 +40,9 @@ PY
     sips -z "$DOUBLE" "$DOUBLE" "$APP/Contents/Resources/icon-source.png" --out "$ICONSET/icon_${SIZE}x${SIZE}@2x.png" >/dev/null
   done
   iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
-  cp "$ROOT/LICENSE" "$ROOT/NOTICE" "$APP/Contents/Resources/"
+  cp "$ROOT/LICENSE" "$ROOT/NOTICE" \
+    "$ROOT/CLIENT-LICENSE.txt" "$ROOT/CLIENT-LICENSE.zh-CN.txt" "$ROOT/LICENSING.md" \
+    "$APP/Contents/Resources/"
   codesign --force --sign - "$APP"
   codesign --verify --deep --strict "$APP"
   # UDRO is an uncompressed, read-only installer disk image, not a ZIP archive.

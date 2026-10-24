@@ -9,7 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>YingView</AssemblyName>
     <RootNamespace>YingView</RootNamespace>
-    <Version>0.3.11</Version>
+    <Version>0.3.12</Version>
     <ClientLanguage Condition="'$(ClientLanguage)' == ''">auto</ClientLanguage>
     <Product Condition="'$(ClientLanguage)' != 'zh-CN'">YingView</Product>
     <Product Condition="'$(ClientLanguage)' == 'zh-CN'">映窗</Product>
@@ -18,7 +18,7 @@
     <Authors Condition="'$(ClientLanguage)' == 'zh-CN'">光之十一</Authors>
     <Copyright Condition="'$(ClientLanguage)' != 'zh-CN'">Copyright © 2026 Shixi Lin</Copyright>
     <Copyright Condition="'$(ClientLanguage)' == 'zh-CN'">版权所有 © 2026 光之十一</Copyright>
-    <PackageLicenseExpression>PolyForm-Noncommercial-1.0.0</PackageLicenseExpression>
+    <PackageLicenseFile>LICENSING.md</PackageLicenseFile>
     <RepositoryUrl>https://github.com/shixi-11/yingview</RepositoryUrl>
     <ApplicationIcon Condition="'$(ClientLanguage)' == 'auto'">Assets/yingview.ico</ApplicationIcon>
     <ApplicationIcon Condition="'$(ClientLanguage)' == 'zh-CN'">Assets/yingview-zh-CN.ico</ApplicationIcon>
@@ -34,6 +34,9 @@
     <EmbeddedResource Include="Commerce/store-config.json" />
     <EmbeddedResource Include="../../LICENSE" LogicalName="YingView.LICENSE" />
     <EmbeddedResource Include="../../NOTICE" LogicalName="YingView.NOTICE" />
+    <EmbeddedResource Include="../../CLIENT-LICENSE.txt" LogicalName="YingView.CLIENT-LICENSE" />
+    <EmbeddedResource Include="../../CLIENT-LICENSE.zh-CN.txt" LogicalName="YingView.CLIENT-LICENSE.zh-CN" WithCulture="false" />
+    <None Include="../../LICENSING.md" Pack="true" PackagePath="" />
     <EmbeddedResource Include="../../ThirdParty/*.txt" LogicalName="YingView.ThirdParty.%(Filename).txt" />
     <ProjectReference Include="../YingView.Core/YingView.Core.csproj" />
     <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="15.0.0" />

@@ -16,7 +16,7 @@ When an unhandled application error occurs, YingView may write diagnostic detail
 
 The app does not transmit images, preferences, comparison marks, CSV exports, or diagnostic details to the developer or third parties. Local preferences and diagnostic files remain until the user clears or removes them. CSV exports remain wherever the user saves them.
 
-In Store editions with purchasing enabled, Microsoft Store handles product, purchase, and license requests under Microsoft's privacy terms. YingView does not receive payment-card details. Purchasing is not enabled in the current preview.
+The client has no in-app purchases or payment processing.
 
 ## Contact
 

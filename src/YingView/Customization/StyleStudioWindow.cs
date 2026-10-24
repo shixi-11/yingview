@@ -22,7 +22,6 @@ public sealed class StyleStudioWindow : Window
     private readonly Action<ViewerTheme> _previewTheme;
     private readonly Action<double> _previewTextScale;
     private readonly Action<bool> _previewCompact;
-    private readonly bool _hasPro;
     private readonly bool _zh;
     private readonly ViewerTheme _originalTheme;
     private readonly double _originalScale;
@@ -39,15 +38,13 @@ public sealed class StyleStudioWindow : Window
     private bool _updating;
 
     public bool Applied { get; private set; }
-    public bool ProRequested { get; private set; }
 
-    public StyleStudioWindow(Preferences settings, Action<ViewerTheme> previewTheme, Action<double> previewTextScale, Action<bool> previewCompact, bool hasPro)
+    public StyleStudioWindow(Preferences settings, Action<ViewerTheme> previewTheme, Action<double> previewTextScale, Action<bool> previewCompact)
     {
         _settings = settings;
         _previewTheme = previewTheme;
         _previewTextScale = previewTextScale;
         _previewCompact = previewCompact;
-        _hasPro = hasPro;
         _zh = settings.Language == "zh";
         _originalTheme = settings.Theme;
         _working = settings.Theme;
@@ -418,11 +415,7 @@ public sealed class StyleStudioWindow : Window
         var reset = SecondaryButton(_zh ? "恢复默认" : "Reset", Reset);
         reset.Margin = new Thickness(0, 0, 8, 0);
         footer.Children.Add(reset);
-        var library = SecondaryButton(_zh ? (_hasPro ? "我的风格" : "个人风格 · 专业版") : (_hasPro ? "My styles" : "My styles · Pro"), () =>
-        {
-            if (_hasPro) ShowLibrary();
-            else { ProRequested = true; Close(); }
-        });
+        var library = SecondaryButton(_zh ? "我的风格" : "My styles", ShowLibrary);
         library.Margin = new Thickness(0, 0, 12, 0);
         footer.Children.Add(library);
         var cancel = SecondaryButton(_zh ? "取消" : "Cancel", () => { Restore(); Close(); });
@@ -702,9 +695,15 @@ public sealed class StyleStudioWindow : Window
 
     private void ShowLibrary()
     {
+        var library = CreateLibraryWindow();
+        library.Owner = this;
+        library.ShowDialog();
+    }
+
+    internal Window CreateLibraryWindow()
+    {
         var window = new Window
         {
-            Owner = this,
             Title = _zh ? "我的风格" : "My styles",
             Width = 380,
             Height = 340,
@@ -766,7 +765,7 @@ public sealed class StyleStudioWindow : Window
                 RefillList();
             }
         });
-        window.ShowDialog();
+        return window;
     }
 
     private static Color Mix(Color c, Color target, double amount) => Color.FromRgb(

@@ -2,7 +2,10 @@
 
 YingView is a local-first image viewer for Windows 10 and 11. Open a picture or drop in a folder to browse it in a large, uncluttered window. It is built with .NET 10 and WPF, with image decoding provided by Magick.NET 15. Download the English build for the YingView name and English interface, or the Simplified Chinese build for the 映窗 name and Chinese interface.
 
-**Version:** 0.3.11 Preview · **Architecture:** x64
+**Version:** 0.3.12 Preview · **Architecture:** x64
+
+The official client is free for personal, freelance, studio and company use.
+The current release has no paid feature gates or in-app purchases.
 
 [简体中文](README.zh-CN.md) · [Download from GitHub Releases](https://github.com/shixi-11/yingview/releases) · [Theme guide](docs/themes.md)
 
@@ -33,7 +36,7 @@ YingView opens and compares images locally. Viewing, rotating, and mirroring do 
 
 ## Download and build
 
-This repository contains the 0.3.6 Preview source for Windows x64. Check the version on [GitHub Releases](https://github.com/shixi-11/yingview/releases) for the builds currently available to download; a source update does not automatically publish new download assets. The Microsoft Store submission has not been made.
+This repository contains the 0.3.12 Preview source for Windows x64. Check the version on [GitHub Releases](https://github.com/shixi-11/yingview/releases) for the builds currently available to download; a source update does not automatically publish new download assets. The Microsoft Store submission has not been made.
 
 Choose the download whose language matches your preference. The selected build also determines the app name, icon, and installed shortcut language.
 
@@ -47,7 +50,9 @@ The generated `Install.ps1` can be run with `-KeepRunningVersion` to install an 
 
 ## License
 
-YingView is provided under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use requires separate written permission from the copyright holder. Third-party dependencies are governed by their own licenses.
+The unmodified official client may be used free of charge for personal and commercial work, including internal company deployment, under the [official client grant](CLIENT-LICENSE.txt).
+
+The source code remains under [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial source development, commercial use of self-built or modified versions, resale, rebranding and commercial bundling require separate written permission. This is source-available software; public source does not grant unrestricted commercial rights. See the [licensing overview](LICENSING.md). Third-party dependencies retain their own licenses.
 
 ## Creator
 

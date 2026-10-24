@@ -1,0 +1,58 @@
+YingView Official Client - Free Use Grant
+Copyright (c) 2026 Shixi Lin
+
+1. Scope
+This additional grant covers unmodified, compiled YingView official clients
+distributed by the copyright holder through the project's official GitHub
+releases, Microsoft Store, its official website, or another channel expressly
+designated by the copyright holder. Official distribution platforms operate
+under their separate agreements with the copyright holder. This grant also
+covers identical copies deployed
+internally under section 2. It does not cover independently compiled or modified
+versions of the source code.
+
+2. Free personal and commercial use
+Individuals and organizations may download, install, run and use the official
+client free of charge for personal and commercial work. This includes freelance
+work, studio work, company operations, and work performed for paying customers.
+Organizations may make and deploy identical copies internally for their own
+users, retaining this grant and all required notices. No per-user or per-device
+royalty is required for these permitted uses.
+
+Normal use of the client's viewing, comparison, review, theme and export
+features in a commercial workflow is permitted. This grant does not transfer
+ownership of your images or other content to the copyright holder.
+
+3. Source code and commercial redistribution
+The source code remains under the separate PolyForm Noncommercial License 1.0.0
+in LICENSE. This additional grant does not authorize commercial development from
+the source code, commercial use of independently compiled or modified builds,
+commercial integration of the code into another product, or paid redistribution,
+resale, rebranding or commercial bundling of the official client. Those uses
+require separate written permission from the copyright holder. The internal
+deployment expressly permitted in section 2 is not prohibited commercial
+redistribution. Noncommercial source uses and distributions remain governed by
+LICENSE and are not narrowed by this grant.
+
+4. Third-party components and names
+Third-party components retain their own licenses and permissions; see
+THIRD-PARTY-NOTICES.md and the included third-party notices. This grant does not
+restrict rights granted separately by those licenses or rights that applicable
+law does not allow to be restricted. No permission to impersonate the copyright
+holder or use the YingView name or logo to imply endorsement is granted.
+
+5. Versions and compliance
+This grant applies to official client versions distributed with it. Later
+versions may be offered under different terms; that alone does not remove the
+permission for copies already covered by this grant. Permission is conditional
+on compliance with these terms. No paid support, service level or future feature
+commitment is included.
+
+6. Disclaimer
+To the extent permitted by applicable law, the official client is provided
+"as is", without warranties or liability for loss arising from its use. Nothing
+in this grant excludes mandatory consumer rights or other non-waivable rights.
+
+The English text is authoritative. CLIENT-LICENSE.zh-CN.txt is its Simplified
+Chinese translation. See LICENSING.md for the distinction between this client
+grant, the source-code license, and third-party licenses.

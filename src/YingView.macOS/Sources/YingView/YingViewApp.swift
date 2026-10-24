@@ -37,6 +37,7 @@ struct YingViewApp: App {
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button(Copy.t("关于映窗", "About YingView")) { NSApp.orderFrontStandardAboutPanel(options: [.applicationName: Copy.brand]) }
+                Button(Copy.t("许可与授权…", "Licensing…")) { showLicensing() }
             }
             CommandGroup(replacing: .appSettings) {
                 Button(Copy.t("外观…", "Appearance…")) { model.beginAppearanceEdit() }.keyboardShortcut(",")
@@ -63,6 +64,29 @@ struct YingViewApp: App {
                 Button(Copy.t("移到废纸篓", "Move to Trash")) { model.trashFromKeyboard() }.keyboardShortcut(.delete, modifiers: [.command])
             }
         }
+    }
+}
+
+@MainActor private func showLicensing() {
+    let alert = NSAlert()
+    alert.messageText = Copy.t("映窗客户端与源码许可", "YingView Client and Source Licenses")
+    alert.informativeText = Copy.t(
+        "未经修改的映窗官方客户端可免费用于个人及商业工作，包括企业内部部署。源码依据 PolyForm Noncommercial 1.0.0 许可；源码商用二次开发、商业使用自行编译或修改的版本，以及转售、换牌或商业捆绑均须另行取得书面授权。\n\n可在下方查看随应用提供的完整客户端授权及许可总览。",
+        "The unmodified official YingView client is free for personal and commercial work, including internal company deployment. Source code is under PolyForm Noncommercial 1.0.0. Commercial source development, commercial use of self-built or modified versions, resale, rebranding and commercial bundling require separate written permission.\n\nOpen the complete client grant or licensing overview below."
+    )
+    alert.addButton(withTitle: Copy.t("查看完整客户端授权", "View Full Client Grant"))
+    alert.addButton(withTitle: Copy.t("查看许可总览", "View Licensing Overview"))
+    alert.addButton(withTitle: Copy.t("关闭", "Close"))
+    let response = alert.runModal()
+    if let resourceURL = Bundle.main.resourceURL {
+        let filename: String
+        switch response {
+        case .alertFirstButtonReturn: filename = Copy.chinese ? "CLIENT-LICENSE.zh-CN.txt" : "CLIENT-LICENSE.txt"
+        case .alertSecondButtonReturn: filename = "LICENSING.md"
+        default: return
+        }
+        let fileURL = resourceURL.appendingPathComponent(filename)
+        if FileManager.default.fileExists(atPath: fileURL.path) { NSWorkspace.shared.open(fileURL) }
     }
 }
 

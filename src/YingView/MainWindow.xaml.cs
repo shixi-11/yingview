@@ -14,7 +14,6 @@ using Microsoft.Win32;
 using YingView.Core;
 using YingView.Imaging;
 using YingView.Files;
-using YingView.Commerce;
 
 namespace YingView;
 
@@ -42,7 +41,6 @@ public partial class MainWindow : Window
     private bool _deleting;
     private double _interfaceScale;
     private bool _compactToolbar;
-    private StoreBillingService? _billing;
     private WindowState _previousState;
     private string? _error;
     private bool _currentFileMissing;
@@ -72,7 +70,7 @@ public partial class MainWindow : Window
         PreviewKeyDown += KeyPressed;
         DragOver += (_, e) => { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
         Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] paths) await OpenPaths(paths); e.Handled = true; };
-        SourceInitialized += (_, _) => { SetDarkTitleBar(); InitializeBilling(); };
+        SourceInitialized += (_, _) => SetDarkTitleBar();
         SizeChanged += (_, _) => ApplyResponsiveToolbar();
         Loaded += async (_, _) =>
         {
@@ -172,7 +170,7 @@ public partial class MainWindow : Window
         MoreMenu.Items.Add(deleteItem);
         MoreMenu.Items.Add(new Separator());
         MoreMenu.Items.Add(Item(T("对照审阅…", "Compare & review…") + "    V", OpenReview));
-        MoreMenu.Items.Add(Item(T("个人风格与专业版", "Personal styles & Pro"), ShowPlans));
+        MoreMenu.Items.Add(Item(T("外观设置…", "Appearance…"), OpenStyleStudio));
         MoreMenu.Items.Add(Item(T("设为默认看图软件…", "Set as default image viewer…"), OpenDefaultSettings));
         MoreMenu.Items.Add(new Separator());
         MoreMenu.Items.Add(Item(T("快捷键", "Keyboard shortcuts") + "    F1", ShowHelp));
@@ -186,19 +184,26 @@ public partial class MainWindow : Window
     }
     private void ShowLicenses()
     {
+        var text = new TextBox { Text = GetLicenseText(), IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Background = (Brush)Application.Current.Resources["BarBrush"], Foreground = (Brush)Application.Current.Resources["TextBrush"], Padding = new Thickness(20), FontSize = 13, BorderThickness = new Thickness(0) };
+        new Window { Owner = this, Title = T("许可信息", "Licenses"), Width = 760, Height = 580, MinWidth = 400, MinHeight = 300, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = text }.ShowDialog();
+    }
+    internal string GetLicenseText()
+    {
         var assembly = typeof(MainWindow).Assembly;
         var content = new System.Text.StringBuilder();
-        foreach (var name in assembly.GetManifestResourceNames().Where(n => n.StartsWith("YingView.ThirdParty.") || n is "YingView.LICENSE" or "YingView.NOTICE").Order())
+        var clientGrant = _settings.Language == "zh" ? "YingView.CLIENT-LICENSE.zh-CN" : "YingView.CLIENT-LICENSE";
+        var resources = new[] { clientGrant }.Concat(assembly.GetManifestResourceNames()
+            .Where(n => n.StartsWith("YingView.ThirdParty.") || n is "YingView.LICENSE" or "YingView.NOTICE").Order());
+        foreach (var name in resources)
         {
             using var resource = assembly.GetManifestResourceStream(name);
             if (resource is null) continue;
             using var reader = new StreamReader(resource); content.AppendLine(name).AppendLine().AppendLine(reader.ReadToEnd()).AppendLine();
         }
-        var text = new TextBox { Text = content.ToString(), IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Background = (Brush)Application.Current.Resources["BarBrush"], Foreground = (Brush)Application.Current.Resources["TextBrush"], Padding = new Thickness(20), FontSize = 13, BorderThickness = new Thickness(0) };
-        new Window { Owner = this, Title = T("许可信息", "Licenses"), Width = 760, Height = 580, MinWidth = 400, MinHeight = 300, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = text }.ShowDialog();
+        return content.ToString();
     }
-    private void SetLanguage(string language) { _settings.Language = language; ApplyLanguage(); InitializeBilling(); SaveSettings(); }
+    private void SetLanguage(string language) { _settings.Language = language; ApplyLanguage(); SaveSettings(); }
     private void CanvasToggleClick(object sender, RoutedEventArgs e) => ToggleCanvasBackground();
     private void ToggleCanvasBackground()
     {
@@ -527,23 +532,9 @@ public partial class MainWindow : Window
     private void StyleStudioClick(object sender, RoutedEventArgs e) => OpenStyleStudio();
     private void OpenStyleStudio()
     {
-        var studio = new StyleStudioWindow(_settings, ApplyTheme, ApplyInterfaceScale, ApplyCompactToolbar, _billing?.Snapshot.HasPro == true) { Owner = this };
+        var studio = new StyleStudioWindow(_settings, ApplyTheme, ApplyInterfaceScale, ApplyCompactToolbar) { Owner = this };
         studio.ShowDialog();
         ApplyTheme(_settings.Theme); ApplyChrome(); BuildMenu();
-        if (studio.ProRequested) ShowPlans();
-    }
-    private void InitializeBilling()
-    {
-        var hwnd = new WindowInteropHelper(this).Handle;
-        if (hwnd == IntPtr.Zero) return;
-        _billing = new StoreBillingService(hwnd, _settings.Language == "zh");
-        _ = _billing.LoadAsync();
-    }
-    private void ShowPlans()
-    {
-        if (_billing is null) InitializeBilling();
-        if (_billing is null) return;
-        new PlansWindow(_billing, _settings.Language == "zh") { Owner = this }.ShowDialog();
     }
     private void OpenReview()
     {

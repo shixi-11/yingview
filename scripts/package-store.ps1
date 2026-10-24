@@ -12,7 +12,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 function Require-Text([string]$Value, [string]$Name) {
-    if ([string]::IsNullOrWhiteSpace($Value) -or $Value -match '^\s*\[.*\]\s*$' -or $Value -match '^(TODO|CHANGE.?ME|PLACEHOLDER)$') {
+    if ([string]::IsNullOrWhiteSpace($Value) -or $Value -match '^\s*[\[<].*[\]>]\s*$' -or $Value -match '^(TODO|CHANGE.?ME|PLACEHOLDER|EXAMPLE|SAMPLE)([-_.].*)?$') {
         throw "$Name must be a real value from the Microsoft Store Partner Center; placeholder and sample identities are not accepted."
     }
 }
@@ -85,6 +85,16 @@ try {
     New-Item -ItemType Directory -Path $stagePath -Force | Out-Null
     Get-ChildItem -LiteralPath $clientPath -Force | Copy-Item -Destination $stagePath -Recurse -Force
 
+    # These client-use terms are separate from the repository's source license.
+    # All three files are required so the packaged client includes its usage grant.
+    foreach ($licenseFile in @('CLIENT-LICENSE.txt', 'CLIENT-LICENSE.zh-CN.txt', 'LICENSING.md')) {
+        $clientLicensePath = Join-Path $clientPath $licenseFile
+        if (-not (Test-Path -LiteralPath $clientLicensePath -PathType Leaf)) {
+            throw "ClientDirectory must contain the client license file '$licenseFile' before Store packaging. Rebuild with the current scripts/build.ps1."
+        }
+        Copy-Item -LiteralPath $clientLicensePath -Destination (Join-Path $stagePath $licenseFile) -Force
+    }
+
     $strings = @{
         'en-US' = @{ DisplayName = 'YingView'; Description = 'A local-first image viewer for browsing and comparing pictures.' }
         'zh-CN' = @{ DisplayName = '映窗'; Description = '本地图片查看与对比工具。' }
@@ -142,7 +152,7 @@ try {
     $xmlName = [Security.SecurityElement]::Escape($IdentityName)
     $xmlPublisher = [Security.SecurityElement]::Escape($Publisher)
     $xmlPublisherDisplay = [Security.SecurityElement]::Escape($PublisherDisplayName)
-    $extensions = @('.png','.jpg','.jpeg','.gif','.webp','.avif','.bmp','.tif','.tiff','.ico','.heic','.heif')
+    $extensions = @('.png','.jpg','.jpeg','.gif','.webp','.avif','.bmp','.tif','.tiff','.ico')
     $fileTypes = ($extensions | ForEach-Object { "              <uap:FileType>$_</uap:FileType>" }) -join "`n"
     $manifest = @"
 <?xml version="1.0" encoding="utf-8"?>
@@ -244,6 +254,12 @@ $fileTypes
         $storeLogoPath = Join-Path $verifyPath ("Assets\$locale\StoreLogo.png")
         foreach ($requiredPath in @($reswPath, $displayNamePath, $tilePath, $storeLogoPath)) {
             if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) { throw "Package verification did not find localized resource: $requiredPath" }
+        }
+    }
+    foreach ($licenseFile in @('CLIENT-LICENSE.txt', 'CLIENT-LICENSE.zh-CN.txt', 'LICENSING.md')) {
+        $packagedLicensePath = Join-Path $verifyPath $licenseFile
+        if (-not (Test-Path -LiteralPath $packagedLicensePath -PathType Leaf)) {
+            throw "Package verification did not find client license file: $licenseFile"
         }
     }
     $priDumpPath = Join-Path $verifyPath 'resources-dump.xml'

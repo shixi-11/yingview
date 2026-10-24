@@ -1,7 +1,11 @@
 YingView
 Copyright (c) 2026 Shixi Lin
 
-Source code is licensed under PolyForm Noncommercial License 1.0.0.
-Commercial use requires separate written permission from the copyright holder.
+Source code is licensed under PolyForm Noncommercial License 1.0.0 (LICENSE).
+Unmodified official clients may be used free of charge for personal and
+commercial work under the additional grant in CLIENT-LICENSE.txt.
+Commercial source development, commercial use of self-built/modified versions,
+and resale or commercial redistribution require separate written permission.
+See LICENSING.md. The official PolyForm license text has not been modified.
 
 Third-party components retain their respective licenses. See THIRD-PARTY-NOTICES.md.

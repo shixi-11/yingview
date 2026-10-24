@@ -16,7 +16,7 @@ Compare two images side by side with synchronized zoom and panning. Choose a dar
 
 Choose one of four appearance presets, adjust colors and interface text size, or make the toolbar more compact. Import and export color themes as JSON.
 
-Images are opened and compared locally. YingView does not upload image files, include advertising, or send usage analytics. Use Delete or Del to send the current image to the Windows Recycle Bin on a local fixed drive.
+YingView is free to use for personal and commercial purposes under its client license. The source code has separate terms. Images are opened and compared locally. YingView does not upload image files, include advertising, or send usage analytics. Use Delete or Del to send the current image to the Windows Recycle Bin on a local fixed drive.
 
 ## Key features
 
@@ -29,3 +29,4 @@ Images are opened and compared locally. YingView does not upload image files, in
 - Animated image viewing, subject to per-image limits
 - PNG, JPEG, GIF, WebP, AVIF, BMP, TIFF, and ICO formats
 - English and Simplified Chinese interface
+- Free client use for personal and commercial purposes
