@@ -59,7 +59,7 @@ public static class DefaultAppService
         var errors = new Dictionary<string, string>();
         foreach (var old in previous)
         {
-            if (string.Equals(old.EffectiveProgId, plan.ProgId, StringComparison.OrdinalIgnoreCase)) continue;
+            if (choiceWriter.HasTarget(old.Extension, plan.ProgId)) continue;
             try
             {
                 choiceWriter.Write(old.Extension, plan.ProgId);
@@ -109,11 +109,30 @@ public static class DefaultAppService
     public static IReadOnlyList<Association> GetAssociations(string language)
     {
         var plan = CreateRegistrationPlan(language, Environment.ProcessPath ?? "YingView.exe");
-        return plan.Extensions.Select(ext =>
+        var native = plan.Extensions.Select(ext =>
         {
             var progId = QueryEffectiveProgId(ext);
             return new Association(ext, progId, string.Equals(progId, plan.ProgId, StringComparison.OrdinalIgnoreCase));
         }).ToArray();
+        try
+        {
+            using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            var latest = LatestAssociationChoice.OpenVerified(identity.User!.Value, native);
+            if (latest is null) return native;
+            // Current Shell versions can use a valid UserChoiceLatest even when legacy query APIs
+            // still report UserChoice. Prefer the verified newer record, matching actual file launches.
+            return native.Select(a =>
+            {
+                var progId = latest.ReadVerifiedProgId(a.Extension) ?? a.ProgId;
+                return new Association(a.Extension, progId, string.Equals(progId, plan.ProgId, StringComparison.OrdinalIgnoreCase));
+            }).ToArray();
+        }
+        catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or System.ComponentModel.Win32Exception
+            or UnauthorizedAccessException or IOException or System.Security.SecurityException or ArgumentException)
+        {
+            // An unknown newer hash format must never produce a false "all defaults set" claim.
+            return native.Select(a => a with { IsYingView = false }).ToArray();
+        }
     }
 
     /// <summary>Registers a per-user candidate if needed, then opens its Windows Default Apps page.</summary>

@@ -14,7 +14,8 @@ internal sealed class LegacyAssociationChoice
     private const string FileExts = @"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts";
     private const string Experience = "User Choice set via Windows User Experience {D18B6DD5-6124-4341-9318-804003BAFA0B}";
     private readonly string _sid;
-    private LegacyAssociationChoice(string sid) => _sid = sid;
+    private readonly LatestAssociationChoice? _latest;
+    private LegacyAssociationChoice(string sid, LatestAssociationChoice? latest = null) { _sid = sid; _latest = latest; }
 
     internal static LegacyAssociationChoice OpenVerified(IReadOnlyList<DefaultAppService.Association> effective)
     {
@@ -22,11 +23,12 @@ internal sealed class LegacyAssociationChoice
         var sid = identity.User?.Value
             ?? throw new NotSupportedException("Cannot identify the signed-in user.");
         var writer = new LegacyAssociationChoice(sid);
+        var latest = LatestAssociationChoice.OpenVerified(sid, effective);
         // A stale UserChoice key alone does not prove that this Windows profile uses its hash scheme.
         // Require both an exact mathematical match and agreement with the effective Shell handler.
-        if (!effective.Any(a => writer.MatchesEffective(a)))
+        if (!effective.Any(a => writer.MatchesEffective(a)) && latest is null)
             throw new NotSupportedException("The effective Windows choice format could not be verified.");
-        return writer;
+        return new LegacyAssociationChoice(sid, latest);
     }
 
     internal bool MatchesEffective(DefaultAppService.Association effective)
@@ -39,6 +41,16 @@ internal sealed class LegacyAssociationChoice
     }
 
     internal void Write(string extension, string progId)
+    {
+        WriteLegacy(extension, progId);
+        _latest?.Write(extension, progId);
+    }
+
+    internal bool HasTarget(string extension, string progId) =>
+        MatchesEffective(new DefaultAppService.Association(extension, progId, true))
+        && (_latest is null || _latest.Matches(extension, progId));
+
+    private void WriteLegacy(string extension, string progId)
     {
         if (!extension.StartsWith('.') || extension.Contains('\\') || extension.Contains('/') || string.IsNullOrWhiteSpace(progId))
             throw new ArgumentException("Invalid image association.");
@@ -64,7 +76,7 @@ internal sealed class LegacyAssociationChoice
 
     private static long Minute(long fileTime) => fileTime - fileTime % TimeSpan.TicksPerMinute;
 
-    private static long ReadLastWriteTime(RegistryKey key)
+    internal static long ReadLastWriteTime(RegistryKey key)
     {
         var z = IntPtr.Zero;
         var error = RegQueryInfoKey(key.Handle, z, z, z, z, z, z, z, z, z, z, out var time);

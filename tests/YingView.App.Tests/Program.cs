@@ -20,6 +20,18 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--verify-latest-choice-format")
+        {
+            using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            var actual = DefaultAppService.GetAssociations("zh");
+            var writer = LatestAssociationChoice.OpenVerified(identity.User!.Value, actual);
+            if (writer is null) throw new Exception("No UserChoiceLatest records found.");
+            var report = actual.Select(a => new { a.Extension, HashMatchesLatestChoice = writer.Matches(a.Extension) }).ToArray();
+            File.WriteAllText(Path.GetFullPath(args[1]), System.Text.Json.JsonSerializer.Serialize(report,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            Console.WriteLine($"Read-only latest hash matches: {report.Count(a => a.HashMatchesLatestChoice)}/{report.Length}.");
+            return 0;
+        }
         if (args.Length == 2 && args[0] == "--make-shell-fixtures")
         {
             var folder = Path.GetFullPath(args[1]); Directory.CreateDirectory(folder);
@@ -188,6 +200,13 @@ internal static class Program
 
     private static void VerifyDefaultAppPlan()
     {
+        const string latestSample = "copyright (c) microsoft. all rights reserved {3822b7ca-c2f4-4889-b8cc-4ce39a8fb81c}.pdd01dcb06ea49f32a0b4deb148-0249-44c4-a8d3-5409e822c599msedgepdfs-1-5-21-673349297-2269585490-1023937497-500";
+        Check(YingView.Files.AssociationHash.LatestAssociationHash.Compute(latestSample) == "JOBZ2dl4dKM=",
+            "Newer choice hashes must match the pinned upstream canonical vector.");
+        var rejectedPeriodic = false;
+        try { YingView.Files.AssociationHash.LatestAssociationHash.Compute(new string(Enumerable.Range(0, 511).Select(i => (char)('a' + i % 26)).ToArray())); }
+        catch (InvalidOperationException) { rejectedPeriodic = true; }
+        Check(rejectedPeriodic, "Adversarial periodic input must be bounded instead of hanging status reads.");
         var hashVectors = new (string Input, string Expected)[]
         {
             ("a", ""), ("ab", ""), ("abcdefgh", "NRA+C4IVU9o="), ("hello world", "Drw6/KuEjS8="),

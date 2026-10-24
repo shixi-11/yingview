@@ -2,7 +2,7 @@
 
 映窗是一款面向 Windows 10 和 11 的本地图片查看器。打开图片或拖入文件夹，就能在宽阔、清爽的窗口里浏览。应用使用 .NET 10 与 WPF 构建，图片解码由 Magick.NET 15 提供。下载简体中文版本会使用“映窗”名称和中文界面；下载英文版本则使用 YingView 名称和英文界面。
 
-**版本：**0.3.3 预览版 · **架构：**x64
+**版本：**0.3.4 预览版 · **架构：**x64
 
 [English](README.md) · [从 GitHub Releases 下载](https://github.com/shixi-11/yingview/releases) · [主题说明](docs/themes.md)
 
@@ -32,7 +32,7 @@ macOS 原生客户端位于 `src/YingView.macOS`，使用 SwiftUI、AppKit 和�
 
 ## 下载与构建
 
-本仓库包含面向 Windows x64 的 0.3.3 预览版源码。当前可下载的版本请以 [GitHub Releases](https://github.com/shixi-11/yingview/releases) 标注为准，源码更新不会自动发布新的下载文件。Microsoft Store 提交尚未进行。
+本仓库包含面向 Windows x64 的 0.3.4 预览版源码。当前可下载的版本请以 [GitHub Releases](https://github.com/shixi-11/yingview/releases) 标注为准，源码更新不会自动发布新的下载文件。Microsoft Store 提交尚未进行。
 
 请按偏好选择对应语言的下载文件。所选版本也决定应用名称、图标和安装后的快捷方式语言。
 
