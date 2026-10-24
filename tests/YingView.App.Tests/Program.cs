@@ -148,6 +148,7 @@ internal static class Program
             InvokeVoid(window, "SetCanvasBackground", originalBackground);
             var fixtures = CreateFixtures();
             VerifyStartupContent(fixtures[0]);
+            VerifyFirstImageBeforeFolderScan(fixtures);
             try
             {
                 Pump(InvokeAsync(window, "OpenPaths", (object)new[] { fixtures[0], fixtures[1], fixtures[2] }));
@@ -441,6 +442,48 @@ internal static class Program
         Check(((FrameworkElement)Field(missing, "EmptyPanel")).Visibility == Visibility.Visible && ((TextBlock)Field(missing, "EmptyTitle")).Text == "图片已不存在",
             "A missing startup image must end in the specific recoverable error state.");
         missing.Close();
+    }
+
+    private static void VerifyFirstImageBeforeFolderScan(string[] fixtures)
+    {
+        using var releaseScan = new ManualResetEventSlim();
+        var viewer = new MainWindow(new Preferences(Path.Combine(Output, "settings", "first-image.json")) { Language = "en" },
+            readFolder: _ => { releaseScan.Wait(); return [fixtures[0], fixtures[1]]; });
+        var surface = (ImageSurface)Field(viewer, "Surface");
+        var open = InvokeAsync(viewer, "OpenPaths", (object)new[] { fixtures[0] });
+        try
+        {
+            SpinUntil(() => surface.Document is not null, TimeSpan.FromSeconds(10));
+            Check(!open.IsCompleted && !(bool)Field(viewer, "_loading"), "The image must be displayed and usable while its folder scan is still blocked.");
+            Check(((string[])Field(viewer, "_files")).Length == 1, "Folder indexing must not delay the requested image.");
+            SaveReviewPng(viewer, (FrameworkElement)viewer.Content, "first-image-before-folder.png");
+        }
+        finally { releaseScan.Set(); }
+        Pump(open);
+        Check(((string[])Field(viewer, "_files")).Length == 2, "Background indexing must restore sibling navigation.");
+        Pump(InvokeAsync(viewer, "Navigate", 1));
+        Check(string.Equals((string?)Field(viewer, "_current"), fixtures[1], StringComparison.OrdinalIgnoreCase), "Folder navigation must preserve the index after displaying the first image.");
+        viewer.Close();
+
+        using var releaseStaleScan = new ManualResetEventSlim();
+        var stale = new MainWindow(new Preferences(Path.Combine(Output, "settings", "stale-index.json")) { Language = "en" },
+            readFolder: _ => { releaseStaleScan.Wait(); return [fixtures[0], fixtures[1]]; });
+        var firstOpen = InvokeAsync(stale, "OpenPaths", (object)new[] { fixtures[0] });
+        try
+        {
+            SpinUntil(() => ((ImageSurface)Field(stale, "Surface")).Document is not null, TimeSpan.FromSeconds(10));
+            Pump(InvokeAsync(stale, "OpenPaths", (object)new[] { fixtures[1], fixtures[2] }));
+        }
+        finally { releaseStaleScan.Set(); }
+        Pump(firstOpen);
+        Check(((string[])Field(stale, "_files")).SequenceEqual(new[] { fixtures[1], fixtures[2] }), "A late folder scan must not replace a newer open request.");
+        stale.Close();
+
+        var inaccessible = new MainWindow(new Preferences(Path.Combine(Output, "settings", "inaccessible-index.json")) { Language = "en" },
+            readFolder: _ => throw new UnauthorizedAccessException());
+        Pump(InvokeAsync(inaccessible, "OpenPaths", (object)new[] { fixtures[0] }));
+        Check(((ImageSurface)Field(inaccessible, "Surface")).Document is not null, "An unreadable directory listing must not hide an independently readable image.");
+        inaccessible.Close();
     }
 
     private static void VerifyLayout(MainWindow window)

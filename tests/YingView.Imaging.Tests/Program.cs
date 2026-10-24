@@ -23,6 +23,7 @@ internal static class Program
         Run("GIF frames/delays/disposal", TestGifFramesDelaysAndDisposal);
         Run("thumbnail bounds/first frame", TestThumbnailUsesFirstFrameAndBoundsSize);
         Run("still format decoders", TestStillFormats);
+        Run("native still decoder guards", TestNativeGuards);
         Run("corrupt file handling", TestCorruptFile);
         Run("100-million-pixel limit", TestPixelLimit);
         Run("201-frame limit", TestAnimationFrameLimit);
@@ -40,6 +41,7 @@ internal static class Program
             image.Write(path, MagickFormat.Png32);
         }
         var document = ImageLoader.Load(path);
+        Check(NativeImageLoader.TryLoad(path) is not null, "ordinary alpha PNG takes the full-resolution fast path");
         Equal(4, document.Width, "Unicode PNG width");
         Equal(2, document.Height, "Unicode PNG height");
         Equal(1, document.Frames.Count, "PNG frame count");
@@ -60,6 +62,7 @@ internal static class Program
             image.Write(path, MagickFormat.Jpeg);
         }
         InsertExifOrientation(path, 6);
+        Check(NativeImageLoader.TryLoad(path) is null, "EXIF rotation retains the established orientation pipeline");
         using (var probe = new MagickImage(path)) Equal(Orientation.RightTop, probe.Orientation, "fixture includes EXIF orientation 6");
 
         var loaded = ImageLoader.Load(path);
@@ -148,6 +151,47 @@ internal static class Program
                 Console.WriteLine($"SKIP: {item.Name} encoder unavailable ({ex.GetType().Name})");
             }
         }
+    }
+
+    private static void TestNativeGuards()
+    {
+        var profiled = Path.Combine(FixtureDirectory, "profiled.png");
+        using (var image = new MagickImage(MagickColors.Red, 12, 8))
+        {
+            image.SetProfile(ColorProfiles.AdobeRGB1998); image.Write(profiled, MagickFormat.Png32);
+        }
+        Check(NativeImageLoader.TryLoad(profiled) is null, "embedded PNG profiles retain the established color pipeline");
+        PixelNear(ImageLoader.Load(profiled).Frames[0], 4, 4, 255, 0, 0, 255, 1, "profiled PNG color preserved");
+        var profiledJpeg = Path.Combine(FixtureDirectory, "profiled.jpg");
+        using (var image = new MagickImage(MagickColors.Red, 12, 8))
+        {
+            image.SetProfile(ColorProfiles.AdobeRGB1998); image.Write(profiledJpeg, MagickFormat.Jpeg);
+        }
+        Check(NativeImageLoader.TryLoad(profiledJpeg) is null, "embedded JPEG profiles retain the established color pipeline");
+        var cmyk = Path.Combine(FixtureDirectory, "cmyk.jpg");
+        using (var image = new MagickImage(MagickColors.Red, 12, 8))
+        {
+            image.ColorSpace = ColorSpace.CMYK; image.Write(cmyk, MagickFormat.Jpeg);
+        }
+        Check(NativeImageLoader.TryLoad(cmyk) is null, "CMYK JPEG retains the established color pipeline");
+        PixelNear(ImageLoader.Load(cmyk).Frames[0], 4, 4, 255, 0, 0, 255, 12, "CMYK JPEG color preserved");
+        var animated = Path.Combine(FixtureDirectory, "animated.png");
+        // Add the APNG control chunk before image data; the guard must never treat it as an ordinary still.
+        var bytes = File.ReadAllBytes(Path.Combine(FixtureDirectory, "中文路径-透明测试.png"));
+        using (var output = File.Create(animated))
+        {
+            output.Write(bytes, 0, 33);
+            output.Write(new byte[] { 0, 0, 0, 8, 97, 99, 84, 76, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0 });
+            output.Write(bytes, 33, bytes.Length - 33);
+        }
+        Check(NativeImageLoader.TryLoad(animated) is null, "APNG control routes to the animation decoder");
+        var disguised = Path.Combine(FixtureDirectory, "wrong-extension.png"); File.Copy(cmyk, disguised, true);
+        Check(NativeImageLoader.TryLoad(disguised) is null, "fast path does not weaken extension/format checks");
+        var png = Path.Combine(FixtureDirectory, "中文路径-透明测试.png");
+        var native = NativeImageLoader.TryLoad(png)!;
+        using var exclusive = new FileStream(png, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        PixelNear(native.Frames[0], 3, 0, 0, 0, 255, 255, 0, "native image stays usable after its stream is released");
+        Check(native.Frames[0].IsFrozen, "native frame is safe to pass from a worker to the UI thread");
     }
 
     private static void TestCorruptFile()

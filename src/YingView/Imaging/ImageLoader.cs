@@ -18,15 +18,19 @@ public static class ImageLoader
         [".ico"] = MagickFormat.Ico, [".heic"] = MagickFormat.Heic, [".heif"] = MagickFormat.Heic
     };
     public static IReadOnlyList<string> Extensions { get; } = Formats.Keys.ToArray();
-    static ImageLoader()
+    private static class MagickRuntime
     {
-        ResourceLimits.Memory = 512UL * 1024 * 1024;
-        ResourceLimits.Disk = 1024UL * 1024 * 1024;
-        ResourceLimits.ListLength = MaxFrames + 1;
-        ResourceLimits.Width = 100_000;
-        ResourceLimits.Height = 100_000;
-        ResourceLimits.Thread = 2;
-        ResourceLimits.MaxProfileSize = 16UL * 1024 * 1024;
+        static MagickRuntime()
+        {
+            ResourceLimits.Memory = 512UL * 1024 * 1024;
+            ResourceLimits.Disk = 1024UL * 1024 * 1024;
+            ResourceLimits.ListLength = MaxFrames + 1;
+            ResourceLimits.Width = 100_000;
+            ResourceLimits.Height = 100_000;
+            ResourceLimits.Thread = 2;
+            ResourceLimits.MaxProfileSize = 16UL * 1024 * 1024;
+        }
+        internal static void Initialize() { }
     }
     public static bool Supports(string path) => !string.IsNullOrWhiteSpace(path) && Formats.ContainsKey(Path.GetExtension(path));
     private static MagickReadSettings Settings(string path, uint frames) => new() { Format = Formats[Path.GetExtension(path)], FrameIndex = 0, FrameCount = frames };
@@ -52,6 +56,8 @@ public static class ImageLoader
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         if (!Supports(path)) throw new InvalidDataException("Unsupported image extension.");
+        if (NativeImageLoader.TryLoad(path) is { } native) return native;
+        MagickRuntime.Initialize();
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         using var info = new MagickImage();
         info.Ping(stream, Settings(path, 1)); ValidateSize(info);
@@ -80,6 +86,7 @@ public static class ImageLoader
     {
         if (maxPixels < 1) throw new ArgumentOutOfRangeException(nameof(maxPixels));
         if (!Supports(path)) throw new InvalidDataException("Unsupported image extension.");
+        MagickRuntime.Initialize();
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         using var image = new MagickImage();
         image.Ping(stream, Settings(path, 1)); ValidateSize(image); stream.Position = 0;

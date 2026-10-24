@@ -21,6 +21,7 @@ namespace YingView;
 public partial class MainWindow : Window
 {
     private readonly Preferences _settings;
+    private readonly Func<string, string[]> _readFolder;
     private readonly SemaphoreSlim _decodeGate = new(1);
     private readonly SemaphoreSlim _thumbnailGate = new(2);
     private readonly Dictionary<string, ImageDocument> _cache = new(StringComparer.OrdinalIgnoreCase);
@@ -47,9 +48,10 @@ public partial class MainWindow : Window
     internal bool IsChinese => _settings.Language == "zh";
 
     public MainWindow() : this(Preferences.Load(), App.Arguments) { }
-    internal MainWindow(Preferences preferences, string[]? startupArguments = null)
+    internal MainWindow(Preferences preferences, string[]? startupArguments = null, Func<string, string[]>? readFolder = null)
     {
         _settings = preferences;
+        _readFolder = readFolder ?? ReadFolder;
         var startupPaths = (startupArguments ?? []).Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
         InitializeComponent();
         // Set the initial content before the window can render, including slow folder scans.
@@ -289,13 +291,13 @@ public partial class MainWindow : Window
             string? select;
             if (Directory.Exists(first))
             {
-                files = await Task.Run(() => Directory.EnumerateFiles(first).Where(ImageLoader.Supports).OrderBy(Path.GetFileName, NaturalStringComparer.Ordinal).ToArray());
+                files = await Task.Run(() => _readFolder(first));
                 select = files.FirstOrDefault();
             }
             else if (paths.Length == 1 && ImageLoader.Supports(first))
             {
-                files = await Task.Run(() => Directory.EnumerateFiles(Path.GetDirectoryName(first)!).Where(ImageLoader.Supports).OrderBy(Path.GetFileName, NaturalStringComparer.Ordinal).ToArray());
-                select = files.FirstOrDefault(p => string.Equals(p, first, StringComparison.OrdinalIgnoreCase));
+                await OpenSingleImage(first, openGeneration);
+                return;
             }
             else
             {
@@ -316,7 +318,7 @@ public partial class MainWindow : Window
             _files = files; _index = Array.FindIndex(files, x => string.Equals(x, select, StringComparison.OrdinalIgnoreCase));
             if (_index < 0) _index = 0;
             _slideshow.Stop(); await LoadCurrent();
-            if (_settings.FullscreenOnOpen && !_fullscreen) ToggleFullscreen();
+            if (openGeneration == _openGeneration && _settings.FullscreenOnOpen && !_fullscreen) ToggleFullscreen();
         }
         catch
         {
@@ -324,6 +326,31 @@ public partial class MainWindow : Window
             ShowEmptyState(T("无法打开此位置", "Could not open this location"), T("请检查文件或文件夹是否仍存在，以及访问权限。", "Check that the file or folder still exists and that you have access."));
             ShowToast(T("无法打开，请检查文件或文件夹是否仍存在，以及访问权限。", "Could not open it. Check that the file or folder still exists and that you have access."));
         }
+    }
+    private static string[] ReadFolder(string path) => Directory.EnumerateFiles(path).Where(ImageLoader.Supports)
+        .OrderBy(Path.GetFileName, NaturalStringComparer.Ordinal).ToArray();
+
+    private async Task OpenSingleImage(string path, int openGeneration)
+    {
+        if (!File.Exists(path))
+        {
+            ShowEmptyState(T("图片已不存在", "Image no longer exists"), T("文件可能已被移动或删除。请打开所在文件夹，或重新选择图片。", "The file may have been moved or deleted. Open its folder or choose another image."));
+            return;
+        }
+        // The requested image is usable before a large or slow folder has finished indexing.
+        _files = [path]; _index = 0; _slideshow.Stop();
+        await LoadCurrent();
+        if (openGeneration != _openGeneration) return;
+        if (_settings.FullscreenOnOpen && !_fullscreen) ToggleFullscreen();
+        try
+        {
+            var files = await Task.Run(() => _readFolder(Path.GetDirectoryName(path)!));
+            if (openGeneration != _openGeneration || !string.Equals(_current, path, StringComparison.OrdinalIgnoreCase)) return;
+            var index = Array.FindIndex(files, file => string.Equals(file, path, StringComparison.OrdinalIgnoreCase));
+            if (index < 0) return; // The file may have moved since its successful decode.
+            _files = files; _index = index; UpdateStatus(); _ = BuildThumbnails();
+        }
+        catch { /* A folder access failure must not hide an independently readable image. */ }
     }
     private void ShowEmptyState(string title, string subtitle)
     {
@@ -348,7 +375,7 @@ public partial class MainWindow : Window
         EmptyPanel.Visibility = Visibility.Collapsed;
         _currentFileMissing = false;
         Title = Path.GetFileName(path) + " · " + T("映窗", "YingView");
-        UpdateStatus(); _ = BuildThumbnails();
+        UpdateStatus();
         try
         {
             if (!File.Exists(path)) throw new FileNotFoundException("Image file no longer exists.", path);
@@ -367,6 +394,7 @@ public partial class MainWindow : Window
             if (generation != _generation) return;
             Surface.SetDocument(doc, DefaultFit);
             EmptyPanel.Visibility = Visibility.Collapsed;
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => _ = BuildThumbnails()));
             _settings.RecentFiles.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
             _settings.RecentFiles.Insert(0, path); _settings.RecentFiles = _settings.RecentFiles.Take(8).ToList();
             BuildMenu();

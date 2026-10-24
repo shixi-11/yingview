@@ -9,7 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>YingView</AssemblyName>
     <RootNamespace>YingView</RootNamespace>
-    <Version>0.3.8</Version>
+    <Version>0.3.9</Version>
     <ClientLanguage Condition="'$(ClientLanguage)' == ''">auto</ClientLanguage>
     <Product Condition="'$(ClientLanguage)' != 'zh-CN'">YingView</Product>
     <Product Condition="'$(ClientLanguage)' == 'zh-CN'">映窗</Product>
@@ -26,6 +26,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="YingView.App.Tests" />
+    <InternalsVisibleTo Include="YingView.Imaging.Tests" />
     <AssemblyMetadata Include="ClientLanguage" Value="$(ClientLanguage)" />
     <Resource Include="Assets/yingview.ico" />
     <Resource Include="Assets/yingview-zh-CN.ico" WithCulture="false" />

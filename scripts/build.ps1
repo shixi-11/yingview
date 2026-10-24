@@ -12,7 +12,7 @@ foreach ($language in $languages) {
     $displayName = if ($language -eq 'zh-CN') { '映窗' } else { 'YingView' }
     $destination = if ($ClientLanguage -eq 'all') { Join-Path $outputRoot "YingView-$language" } else { $outputRoot }
     New-Item -ItemType Directory -Path $destination -Force | Out-Null
-    & $DotnetPath publish $project -c $Configuration -r win-x64 --self-contained true -o $destination --nologo "-p:ClientLanguage=$language" -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false
+    & $DotnetPath publish $project -c $Configuration -r win-x64 --self-contained true -o $destination --nologo "-p:ClientLanguage=$language" -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=false -p:DebugType=None -p:DebugSymbols=false
     if ($LASTEXITCODE -ne 0) { throw "Publish failed for $language." }
     foreach ($file in @('LICENSE','NOTICE','THIRD-PARTY-NOTICES.md')) { Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination (Join-Path $destination $file) -Force }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install.ps1') -Destination (Join-Path $destination 'Install.ps1') -Force
