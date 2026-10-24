@@ -41,7 +41,6 @@ public sealed class ImageSurface : FrameworkElement
             _animation.Interval = TimeSpan.FromMilliseconds(Document.FrameDelaysMs[_frame]);
             InvalidateVisual();
         };
-        SizeChanged += (_, _) => UpdateViewport();
         MouseWheel += (_, e) =>
         {
             if (Document is null) return;
@@ -74,6 +73,12 @@ public sealed class ImageSurface : FrameworkElement
         Changed();
     }
     protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi) { base.OnDpiChanged(oldDpi, newDpi); UpdateViewport(); }
+    protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
+    {
+        base.OnRenderSizeChanged(sizeInfo);
+        // A preloaded image must be fitted during arrange, before its very first render.
+        UpdateViewport();
+    }
     public void UpdateViewport()
     {
         if (ActualWidth <= 0 || ActualHeight <= 0) return;

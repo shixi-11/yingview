@@ -411,6 +411,17 @@ internal static class Program
         Check(((ImageSurface)Field(prepared, "Surface")).Document is not null && !prepared.IsLoaded,
             "Startup preparation must make the requested image available before the window is shown or Loaded fires.");
         SaveReviewPng(prepared, (FrameworkElement)prepared.Content, "startup-prepared-image.png");
+        var preparedSurface = (ImageSurface)Field(prepared, "Surface");
+        Check(Math.Abs(preparedSurface.View.ViewportWidth - preparedSurface.ActualWidth) < 0.01
+            && Math.Abs(preparedSurface.View.ViewportHeight - preparedSurface.ActualHeight) < 0.01,
+            "The preloaded image must already fit the real viewport on its first arranged frame.");
+        using (var capture = File.OpenRead(Path.Combine(Output, "startup-prepared-image.png")))
+        {
+            var firstFrame = new PngBitmapDecoder(capture, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames[0];
+            var centerPixel = new byte[4];
+            firstFrame.CopyPixels(new Int32Rect(firstFrame.PixelWidth / 2, firstFrame.PixelHeight / 2, 1, 1), centerPixel, 4, 0);
+            Check(centerPixel.Take(3).Any(channel => channel > 40), "The first rendered startup frame must contain the image, rather than a black canvas.");
+        }
         prepared.Close();
 
         var startup = new MainWindow(new Preferences(Path.Combine(directory, "image-settings.json")) { Language = "en" }, [image]);
