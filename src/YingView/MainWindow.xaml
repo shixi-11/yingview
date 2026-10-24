@@ -22,6 +22,7 @@
           <Button x:Name="ZoomInButton" Content="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Click="ZoomInClick" Padding="8,7" ToolTip="Zoom in"/>
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button x:Name="CanvasToggleButton" Click="CanvasToggleClick" Content="◐" FontSize="15" Padding="9,7" ToolTip="Switch canvas background"/>
           <Button x:Name="RotateButton" Content="&#xE7AD;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Padding="9,7" Click="RotateClick" ToolTip="Rotate clockwise"/>
           <Button x:Name="FullscreenButton" Content="&#xE740;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Padding="9,7" Click="FullscreenClick" ToolTip="Fullscreen"/>
           <Menu VerticalAlignment="Center"><MenuItem x:Name="MoreMenu" Header="•••" Foreground="{DynamicResource TextBrush}" FontSize="15"/></Menu>
@@ -35,11 +36,11 @@
     <Grid Grid.Row="1" x:Name="Stage" Background="{DynamicResource ShellBrush}">
       <local:ImageSurface x:Name="Surface"/>
       <StackPanel x:Name="EmptyPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="28">
-        <TextBlock Text="&#xE8B9;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="36" HorizontalAlignment="Center" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,18"/>
+        <TextBlock x:Name="EmptyIcon" Text="&#xE8B9;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="36" HorizontalAlignment="Center" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,18"/>
         <TextBlock x:Name="EmptyTitle" FontSize="23" FontWeight="SemiBold" HorizontalAlignment="Center"/>
         <TextBlock x:Name="EmptySubtitle" MaxWidth="500" TextWrapping="Wrap" TextAlignment="Center" FontSize="14" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" Margin="0,8,0,20"/>
         <Button x:Name="EmptyOpenButton" Click="OpenClick" HorizontalAlignment="Center" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontSize="13" Padding="21,9"/>
-        <TextBlock Text="PNG · JPG · WebP · AVIF · GIF · TIFF · ICO" FontSize="12" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" Margin="0,18,0,0"/>
+        <TextBlock x:Name="EmptyFormats" Text="PNG · JPG · WebP · AVIF · GIF · TIFF · ICO" FontSize="12" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" Margin="0,18,0,0"/>
       </StackPanel>
       <Border x:Name="InfoPanel" Visibility="Collapsed" Width="310" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{DynamicResource BarBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="7" Padding="17" Margin="16">
         <StackPanel><TextBlock x:Name="InfoTitle" FontSize="15" FontWeight="SemiBold"/><TextBox x:Name="InfoText" Margin="0,13,0,0" TextWrapping="Wrap" IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource TextBrush}" FontSize="13"/></StackPanel>

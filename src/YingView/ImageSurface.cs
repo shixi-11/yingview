@@ -12,6 +12,7 @@ public sealed class ImageSurface : FrameworkElement
     public Viewport View { get; } = new();
     public ImageDocument? Document { get; private set; }
     public Brush CanvasBrush { get; set; } = Brushes.Black;
+    public string CanvasMode { get; set; } = "theme";
     public string AlphaBackground { get; set; } = "dark";
     public bool Mirrored { get; private set; }
     public bool AnimationPaused { get; private set; }
@@ -91,7 +92,8 @@ public sealed class ImageSurface : FrameworkElement
     private void Changed() { InvalidateVisual(); ViewChanged?.Invoke(); }
     protected override void OnRender(DrawingContext dc)
     {
-        dc.DrawRectangle(CanvasBrush, null, new Rect(RenderSize));
+        var canvas = CanvasMode switch { "black" => Brushes.Black, "white" => Brushes.White, _ => CanvasBrush };
+        dc.DrawRectangle(canvas, null, new Rect(RenderSize));
         if (Document is null) return;
         dc.PushClip(new RectangleGeometry(new Rect(RenderSize)));
         double x = View.OffsetX, y = View.OffsetY;
@@ -100,7 +102,12 @@ public sealed class ImageSurface : FrameworkElement
             x = Math.Round(x * View.DpiScale) / View.DpiScale;
             y = Math.Round(y * View.DpiScale) / View.DpiScale;
         }
-        Brush alphaBrush = AlphaBackground switch { "light" => Brushes.White, "checker" => Checker, _ => CanvasBrush };
+        Brush alphaBrush = CanvasMode switch
+        {
+            "black" => Brushes.Black,
+            "white" => Brushes.White,
+            _ => AlphaBackground switch { "light" => Brushes.White, "checker" => Checker, _ => CanvasBrush }
+        };
         dc.DrawRectangle(alphaBrush, null, new Rect(x, y, View.DisplayWidth, View.DisplayHeight));
         dc.PushTransform(new TranslateTransform(x, y));
         dc.PushTransform(new ScaleTransform(View.Scale, View.Scale));

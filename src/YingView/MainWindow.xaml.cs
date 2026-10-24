@@ -53,7 +53,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _interfaceScale = _settings.TextScale; _compactToolbar = _settings.CompactToolbar;
         ApplyTheme(_settings.Theme); ApplyLanguage(); ApplyInterfaceScale(_interfaceScale);
-        Surface.AlphaBackground = _settings.Background;
+        ApplyCanvasBackground();
         Surface.ViewChanged += UpdateStatus;
         Surface.FullscreenRequested += ToggleFullscreen;
         _toastTimer.Tick += (_, _) => { Toast.Visibility = Visibility.Collapsed; _toastTimer.Stop(); };
@@ -93,6 +93,7 @@ public partial class MainWindow : Window
         Tip(FitButton, T("保持比例，完整放大显示", "Enlarge to fit without cropping") + " · F");
         Tip(ActualButton, T("一个图片像素对应一个屏幕像素", "One image pixel per physical display pixel") + " · 1");
         Tip(RotateButton, T("向右旋转", "Rotate clockwise") + " · R");
+        Tip(CanvasToggleButton, T("切换黑白背景", "Switch black/white background") + " · B");
         Tip(FullscreenButton, T("全屏 / 退出全屏", "Enter / leave fullscreen") + " · F11");
         Tip(ZoomInButton, T("放大", "Zoom in") + " · +"); Tip(ZoomOutButton, T("缩小", "Zoom out") + " · −");
         Tip(StudioButton, T("自定义界面风格", "Customize appearance"));
@@ -123,11 +124,11 @@ public partial class MainWindow : Window
         }
         recent.IsEnabled = recent.Items.Count > 0; MoreMenu.Items.Add(recent);
         MoreMenu.Items.Add(new Separator());
-        var background = new MenuItem { Header = T("透明图背景", "Transparency background") };
-        foreach (var value in new[] { "dark", "light", "checker" })
+        var background = new MenuItem { Header = T("背景颜色", "Background color") };
+        foreach (var value in new[] { "black", "white", "theme", "checker" })
         {
-            var label = value switch { "light" => T("白色", "White"), "checker" => T("棋盘格", "Checkerboard"), _ => T("跟随主题", "Theme background") };
-            background.Items.Add(Item(label, () => { _settings.Background = value; Surface.AlphaBackground = value; Surface.InvalidateVisual(); BuildMenu(); SaveSettings(); }, _settings.Background == value));
+            var label = value switch { "black" => T("黑色", "Black"), "white" => T("白色", "White"), "checker" => T("棋盘格", "Checkerboard"), _ => T("跟随主题", "Theme background") };
+            background.Items.Add(Item(label, () => SetCanvasBackground(value), _settings.Background == value || value == "white" && _settings.Background == "light" || value == "black" && _settings.Background == "dark"));
         }
         MoreMenu.Items.Add(background);
         var theme = new MenuItem { Header = T("界面风格", "Appearance") };
@@ -186,6 +187,28 @@ public partial class MainWindow : Window
         new Window { Owner = this, Title = T("许可信息", "Licenses"), Width = 760, Height = 580, MinWidth = 400, MinHeight = 300, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = text }.ShowDialog();
     }
     private void SetLanguage(string language) { _settings.Language = language; ApplyLanguage(); InitializeBilling(); SaveSettings(); }
+    private void CanvasToggleClick(object sender, RoutedEventArgs e) => ToggleCanvasBackground();
+    private void ToggleCanvasBackground()
+    {
+        var light = _settings.Background is "white" or "light"
+            || _settings.Background == "theme" && Surface.CanvasBrush is SolidColorBrush brush
+                && .2126 * brush.Color.R + .7152 * brush.Color.G + .0722 * brush.Color.B > 160;
+        SetCanvasBackground(light ? "black" : "white");
+    }
+    private void SetCanvasBackground(string value)
+    {
+        _settings.Background = value; ApplyCanvasBackground(); BuildMenu(); SaveSettings(); Surface.Focus();
+    }
+    private void ApplyCanvasBackground()
+    {
+        Surface.CanvasMode = _settings.Background switch { "black" or "dark" => "black", "white" or "light" => "white", _ => "theme" };
+        Surface.AlphaBackground = _settings.Background == "checker" ? "checker" : "dark";
+        var foreground = Surface.CanvasMode == "white" ? Brushes.Black : Surface.CanvasMode == "black" ? Brushes.White : (Brush)Application.Current.Resources["TextBrush"];
+        var muted = Surface.CanvasMode == "white" ? ViewerTheme.Brush("#555B61") : Surface.CanvasMode == "black" ? ViewerTheme.Brush("#C5CBD0") : (Brush)Application.Current.Resources["MutedBrush"];
+        EmptyTitle.Foreground = foreground; EmptySubtitle.Foreground = muted;
+        EmptyIcon.Foreground = muted; EmptyFormats.Foreground = muted;
+        Surface.InvalidateVisual();
+    }
     private static string DisplayVersion => typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
         ?? typeof(MainWindow).Assembly.GetName().Version?.ToString(3)
         ?? "";
@@ -205,7 +228,7 @@ public partial class MainWindow : Window
         resources["PressedBrush"] = ViewerTheme.Brush(light ? "#CFDAD6" : "#354139");
         var accent = (Color)ColorConverter.ConvertFromString(theme.Accent);
         resources["AccentTextBrush"] = ViewerTheme.Brush(.2126 * accent.R + .7152 * accent.G + .0722 * accent.B > 160 ? "#14231F" : "#FFFFFF");
-        Surface.CanvasBrush = ViewerTheme.Brush(theme.Canvas); Surface.InvalidateVisual(); SetDarkTitleBar();
+        Surface.CanvasBrush = ViewerTheme.Brush(theme.Canvas); ApplyCanvasBackground(); SetDarkTitleBar();
     }
     [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
     private void SetDarkTitleBar()
@@ -585,7 +608,7 @@ public partial class MainWindow : Window
         catch (Exception ex) { ShowToast(ex.Message); }
     }
     private void ShowHelp() => MessageBox.Show(this,
-        T("Ctrl+O  打开图片\nCtrl+Shift+O  打开文件夹\n← / →  上一张 / 下一张\n滚轮  围绕鼠标缩放\n拖动  移动画面\nF / 0  完整显示并自动放大\n1  原始像素\n+ / −  放大 / 缩小\nR  旋转    H  镜像\nB  切换透明背景\nDelete / Del  移入回收站\nV  对照审阅\nT  缩略图    I  图片信息\nP  幻灯片    空格  暂停动图\nF11 / 双击  全屏\nTab  隐藏工具栏\nEsc  退出全屏 / 关闭信息\nCtrl+C  复制原图\nCtrl+Shift+C  复制路径\nCtrl+V  粘贴图片\nCtrl+E  在文件夹中显示\nF5  重新载入", "Ctrl+O  Open images\nCtrl+Shift+O  Open folder\n← / →  Previous / next image\nMouse wheel  Zoom around pointer\nDrag  Pan\nF / 0  Enlarge to fit\n1  Actual pixels\n+ / −  Zoom in / out\nR  Rotate    H  Mirror\nB  Cycle transparency background\nDelete / Del  Move to Recycle Bin\nV  Compare & review\nT  Thumbnails    I  Image info\nP  Slideshow    Space  Pause animation\nF11 / Double-click  Fullscreen\nTab  Hide toolbars\nEsc  Leave fullscreen / close info\nCtrl+C  Copy original image\nCtrl+Shift+C  Copy file path\nCtrl+V  Paste image\nCtrl+E  Show in folder\nF5  Reload"), T("快捷键", "Keyboard shortcuts"));
+        T("Ctrl+O  打开图片\nCtrl+Shift+O  打开文件夹\n← / →  上一张 / 下一张\n滚轮  围绕鼠标缩放\n拖动  移动画面\nF / 0  完整显示并自动放大\n1  原始像素\n+ / −  放大 / 缩小\nR  旋转    H  镜像\nB  切换黑白背景\nDelete / Del  移入回收站\nV  对照审阅\nT  缩略图    I  图片信息\nP  幻灯片    空格  暂停动图\nF11 / 双击  全屏\nTab  隐藏工具栏\nEsc  退出全屏 / 关闭信息\nCtrl+C  复制原图\nCtrl+Shift+C  复制路径\nCtrl+V  粘贴图片\nCtrl+E  在文件夹中显示\nF5  重新载入", "Ctrl+O  Open images\nCtrl+Shift+O  Open folder\n← / →  Previous / next image\nMouse wheel  Zoom around pointer\nDrag  Pan\nF / 0  Enlarge to fit\n1  Actual pixels\n+ / −  Zoom in / out\nR  Rotate    H  Mirror\nB  Switch black/white background\nDelete / Del  Move to Recycle Bin\nV  Compare & review\nT  Thumbnails    I  Image info\nP  Slideshow    Space  Pause animation\nF11 / Double-click  Fullscreen\nTab  Hide toolbars\nEsc  Leave fullscreen / close info\nCtrl+C  Copy original image\nCtrl+Shift+C  Copy file path\nCtrl+V  Paste image\nCtrl+E  Show in folder\nF5  Reload"), T("快捷键", "Keyboard shortcuts"));
     private async void KeyPressed(object sender, KeyEventArgs e)
     {
         // Preserve native keyboard handling and prevent accidental deletion while
@@ -626,8 +649,7 @@ public partial class MainWindow : Window
             case Key.P: ToggleSlideshow(); break;
             case Key.Space: Surface.PauseAnimation(); break;
             case Key.B:
-                _settings.Background = _settings.Background switch { "dark" => "light", "light" => "checker", _ => "dark" };
-                Surface.AlphaBackground = _settings.Background; Surface.InvalidateVisual(); BuildMenu(); SaveSettings(); break;
+                ToggleCanvasBackground(); break;
             case Key.F11: ToggleFullscreen(); break;
             case Key.Tab: _chromeHidden = !_chromeHidden; ApplyChrome(); break;
             case Key.Escape:

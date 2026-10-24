@@ -46,7 +46,7 @@ internal static class Program
             foreach (var (extension, format) in formats)
             {
                 var path = Path.Combine(folder, "association-test." + extension);
-                using (var image = new ImageMagick.MagickImage(ImageMagick.MagickColors.Teal, 128, 96)) image.Write(path, format);
+                using (var image = new ImageMagick.MagickImage(ImageMagick.MagickColors.Black, 128, 96)) image.Write(path, format);
                 var document = YingView.Imaging.ImageLoader.Load(path);
                 Check(document.Width > 0 && document.Height > 0 && document.Frames.Count > 0, "Shell fixtures must decode successfully before use.");
             }
@@ -134,6 +134,18 @@ internal static class Program
         {
             VerifyClientLanguageBranding(window, settings);
             VerifyLayout(window);
+            YingView.AppTests.BackgroundAssertions.Run(window, Output);
+            var originalBackground = settings.Background;
+            window.Width = 1280; window.Height = 800;
+            InvokeVoid(window, "SetCanvasBackground", "black");
+            SaveReviewPng(window, (FrameworkElement)window.Content, "canvas-ui-black.png");
+            InvokeVoid(window, "SetCanvasBackground", "white");
+            SaveReviewPng(window, (FrameworkElement)window.Content, "canvas-ui-white.png");
+            InvokeVoid(window, "ToggleCanvasBackground");
+            Check(settings.Background == "black", "The background button must toggle white to black.");
+            InvokeVoid(window, "ToggleCanvasBackground");
+            Check(settings.Background == "white", "The background button must toggle black to white.");
+            InvokeVoid(window, "SetCanvasBackground", originalBackground);
             var fixtures = CreateFixtures();
             try
             {

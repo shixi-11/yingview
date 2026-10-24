@@ -11,7 +11,7 @@ public sealed class Preferences
     public Preferences() { }
     internal Preferences(string storagePath) { _storagePath = storagePath; }
     public string Language { get; set; } = ClientBranding.InitialLanguage;
-    public string Background { get; set; } = "dark";
+    public string Background { get; set; } = "black";
     public string DefaultFit { get; set; } = "contain";
     public bool Filmstrip { get; set; }
     public int AppearanceUiVersion { get; set; }
@@ -32,7 +32,8 @@ public sealed class Preferences
             value.DefaultFit = "contain";
             value.Language = value.Language == "zh" ? "zh" : "en";
             if (ClientBranding.DistributionLanguage != "auto") value.Language = ClientBranding.InitialLanguage;
-            if (value.Background is not ("dark" or "light" or "checker")) value.Background = "dark";
+            if (value.Background == "dark") value.Background = "black";
+            if (value.Background is not ("theme" or "light" or "checker" or "black" or "white")) value.Background = "black";
             value.RecentFiles = (value.RecentFiles ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Take(8).ToList();
             if (value.AppearanceUiVersion < 2) { value.Filmstrip = false; value.AppearanceUiVersion = 2; }
             if (value.TextScale is < 0.85 or > 1.3) value.TextScale = 1.0;
