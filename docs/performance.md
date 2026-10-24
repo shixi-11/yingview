@@ -2,6 +2,8 @@
 
 When a supported image file is opened, the viewer decodes and presents that file before listing its directory. The list then restores natural-order sibling navigation. An inaccessible directory listing does not remove an otherwise readable image, and a late listing cannot replace a newer open request. Opening a directory still selects its first supported image in natural order.
 
+The startup open begins before the window is shown, and the Loaded event reuses that same task. Startup allows up to 120 ms for preparation before showing the window, so ordinary images can be present on its first frame while slow inputs still show a responsive loading window.
+
 Ordinary 8-bit PNG, RGB JPEG and BMP files use the Windows decoder at full resolution. Embedded ICC profiles, CMYK, EXIF rotation, high-depth images and animation controls retain the existing Magick pipeline. Decoded BGRA pixels are materialized before the stream closes and frozen for the UI thread. Format queries no longer initialize Magick's native runtime; its resource limits initialize when that decoder is actually needed. Thumbnails yield to the main image render.
 
 Windows clients use an uncompressed self-contained single file to reduce repeated process startup work. This increases the executable size. It does not change image compression, resolution or output pixels.

@@ -22,6 +22,8 @@ public partial class MainWindow : Window
 {
     private readonly Preferences _settings;
     private readonly Func<string, string[]> _readFolder;
+    private readonly string[] _startupPaths;
+    private Task? _startupOpen;
     private readonly SemaphoreSlim _decodeGate = new(1);
     private readonly SemaphoreSlim _thumbnailGate = new(2);
     private readonly Dictionary<string, ImageDocument> _cache = new(StringComparer.OrdinalIgnoreCase);
@@ -52,10 +54,10 @@ public partial class MainWindow : Window
     {
         _settings = preferences;
         _readFolder = readFolder ?? ReadFolder;
-        var startupPaths = (startupArguments ?? []).Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
+        _startupPaths = (startupArguments ?? []).Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
         InitializeComponent();
         // Set the initial content before the window can render, including slow folder scans.
-        _loading = startupPaths.Length > 0;
+        _loading = _startupPaths.Length > 0;
         EmptyPanel.Visibility = _loading ? Visibility.Collapsed : Visibility.Visible;
         // This window only views images; text editing lives in separate dialogs.
         // Keep Chinese IMEs from consuming single-letter viewing shortcuts such as B/F/R.
@@ -76,7 +78,7 @@ public partial class MainWindow : Window
         {
             WindowState = WindowState.Maximized;
             ApplyChrome();
-            if (startupPaths.Length > 0) await OpenPaths(startupPaths);
+            await OpenStartupAsync();
             Surface.Focus();
         };
         Closing += (_, _) =>
@@ -85,6 +87,8 @@ public partial class MainWindow : Window
             Surface.SetDocument(null, DefaultFit); _settings.Save();
         };
     }
+
+    internal Task OpenStartupAsync() => _startupOpen ??= OpenPaths(_startupPaths);
 
     private void ApplyLanguage()
     {

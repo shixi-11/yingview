@@ -7,7 +7,7 @@ namespace YingView;
 public partial class App : Application
 {
     public static string[] Arguments { get; private set; } = [];
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         // A packaged installation keeps the identity assigned by Windows.
         var packageNameLength = 0;
@@ -29,8 +29,13 @@ public partial class App : Application
                 zh ? "映窗" : "YingView", MessageBoxButton.OK, MessageBoxImage.Warning);
             args.Handled = true;
         };
-        MainWindow = new MainWindow();
-        MainWindow.Show();
+        var viewer = new MainWindow();
+        MainWindow = viewer;
+        var opening = viewer.OpenStartupAsync();
+        // Give ordinary pictures a short head start so the window can appear with its image.
+        // Slow files still get a responsive loading window after this bounded delay.
+        if (!opening.IsCompleted) await Task.WhenAny(opening, Task.Delay(120));
+        viewer.Show();
     }
     [DllImport("kernel32.dll", ExactSpelling = true)]
     private static extern int GetCurrentPackageFullName(ref int packageFullNameLength, IntPtr packageFullName);

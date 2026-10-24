@@ -404,6 +404,15 @@ internal static class Program
             "Starting without a file must retain the welcome page.");
         welcome.Close();
 
+        var prepared = new MainWindow(new Preferences(Path.Combine(directory, "prepared-settings.json")) { Language = "en" }, [image]);
+        var preparing = prepared.OpenStartupAsync();
+        Check(ReferenceEquals(preparing, prepared.OpenStartupAsync()), "Startup preparation must not launch the same decode twice.");
+        Pump(preparing);
+        Check(((ImageSurface)Field(prepared, "Surface")).Document is not null && !prepared.IsLoaded,
+            "Startup preparation must make the requested image available before the window is shown or Loaded fires.");
+        SaveReviewPng(prepared, (FrameworkElement)prepared.Content, "startup-prepared-image.png");
+        prepared.Close();
+
         var startup = new MainWindow(new Preferences(Path.Combine(directory, "image-settings.json")) { Language = "en" }, [image]);
         var panel = (FrameworkElement)Field(startup, "EmptyPanel");
         var surface = (ImageSurface)Field(startup, "Surface");
@@ -414,7 +423,9 @@ internal static class Program
         gate.Wait();
         try
         {
+            var pendingStartup = startup.OpenStartupAsync();
             startup.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            Check(ReferenceEquals(pendingStartup, startup.OpenStartupAsync()), "Loaded must reuse the in-flight startup decode.");
             SpinUntil(() => string.Equals((string?)Field(startup, "_current"), image, StringComparison.OrdinalIgnoreCase), TimeSpan.FromSeconds(10));
             Check((bool)Field(startup, "_loading") && surface.Document is null && panel.Visibility == Visibility.Collapsed,
                 "A delayed first decode must keep the welcome page hidden while loading.");
