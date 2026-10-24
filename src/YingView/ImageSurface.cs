@@ -26,6 +26,7 @@ public sealed class ImageSurface : FrameworkElement
 
     public ImageSurface()
     {
+        InputMethod.SetIsInputMethodEnabled(this, false);
         Focusable = true; ClipToBounds = true;
         RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
         _animation.Tick += (_, _) =>

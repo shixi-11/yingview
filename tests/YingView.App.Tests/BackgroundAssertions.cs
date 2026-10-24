@@ -14,6 +14,7 @@ internal static class BackgroundAssertions
 {
     public static void Run(MainWindow window, string outputDirectory)
     {
+        Check(!System.Windows.Input.InputMethod.GetIsInputMethodEnabled(window), "The non-editable viewer must not send background shortcuts into a Chinese IME.");
         Directory.CreateDirectory(outputDirectory);
         var settings = (Preferences)typeof(MainWindow).GetField("_settings", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
         var originalBackground = settings.Background;
@@ -37,6 +38,7 @@ internal static class BackgroundAssertions
         transparent.Freeze();
         var originalPixels = new byte[16]; transparent.CopyPixels(originalPixels, 8, 0);
         var renderSurface = new ImageSurface { Width = 120, Height = 80, CanvasBrush = Brushes.Gray, CanvasMode = "black", AlphaBackground = "dark" };
+        Check(!System.Windows.Input.InputMethod.GetIsInputMethodEnabled(renderSurface), "An image canvas must not start text composition.");
         using var host = new HwndSource(new HwndSourceParameters("YingView.BackgroundAssertions") { Width = 120, Height = 80, WindowStyle = 0 });
         host.RootVisual = renderSurface;
         renderSurface.Measure(new Size(120, 80)); renderSurface.Arrange(new Rect(0, 0, 120, 80));

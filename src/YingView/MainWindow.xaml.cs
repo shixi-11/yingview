@@ -51,6 +51,9 @@ public partial class MainWindow : Window
     {
         _settings = preferences;
         InitializeComponent();
+        // This window only views images; text editing lives in separate dialogs.
+        // Keep Chinese IMEs from consuming single-letter viewing shortcuts such as B/F/R.
+        InputMethod.SetIsInputMethodEnabled(this, false);
         _interfaceScale = _settings.TextScale; _compactToolbar = _settings.CompactToolbar;
         ApplyTheme(_settings.Theme); ApplyLanguage(); ApplyInterfaceScale(_interfaceScale);
         ApplyCanvasBackground();
