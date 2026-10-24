@@ -1,12 +1,17 @@
 using System.Windows;
 using System.IO;
 using System.Runtime.InteropServices;
+using YingView.Updates;
 
 namespace YingView;
 
 public partial class App : Application
 {
     public static string[] Arguments { get; private set; } = [];
+    internal static bool IsStoreManaged
+    {
+        get { var length = 0; return GetCurrentPackageFullName(ref length, IntPtr.Zero) != 15700; }
+    }
     protected override async void OnStartup(StartupEventArgs e)
     {
         // A packaged installation keeps the identity assigned by Windows.
@@ -15,6 +20,18 @@ public partial class App : Application
             _ = SetCurrentProcessExplicitAppUserModelID(ClientBranding.DesktopAppId(ClientBranding.InitialLanguage));
         base.OnStartup(e);
         Arguments = e.Args;
+        if (e.Args.FirstOrDefault() == "--install-update")
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            try { await UpdateInstaller.InstallSelfAndRestartAsync(e.Args.Skip(1).FirstOrDefault()); }
+            catch
+            {
+                var zh = ClientBranding.InitialLanguage == "zh";
+                MessageBox.Show(zh ? "更新安装未完成，原版本仍可使用。请重新打开映窗后重试。" : "The update could not be installed. Your previous version is still available. Reopen YingView and try again.",
+                    ClientBranding.DisplayName(ClientBranding.InitialLanguage), MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            Shutdown(); return;
+        }
         DispatcherUnhandledException += (_, args) =>
         {
             try

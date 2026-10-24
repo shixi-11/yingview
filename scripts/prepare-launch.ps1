@@ -42,6 +42,7 @@ $releaseZh = @"
 - 双图对比支持同步缩放和平移，可切换深色、浅色或棋盘格背景检查透明画面。
 - “保留 / 待定”标记与 CSV 导出预览可免费使用。
 - 图片留在本机处理，不会上传图片。
+- 支持手动检查更新、新版提示，以及校验后的安装与重启。
 
 ## 获取版本
 
@@ -64,6 +65,7 @@ YingView is a Windows image viewer for browsing local files.
 - Two-image comparison with synchronized zoom and pan, plus dark, light, and checkerboard backgrounds for inspecting transparency.
 - Keep / Pending labels and a free CSV export preview.
 - Images stay on the device and are not uploaded.
+- Check for updates, receive new-version notices, and install a verified update with a restart.
 
 ## Version and download
 

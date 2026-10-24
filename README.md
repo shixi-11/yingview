@@ -2,7 +2,7 @@
 
 YingView is a local-first image viewer for Windows 10 and 11. Open a picture or drop in a folder to browse it in a large, uncluttered window. It is built with .NET 10 and WPF, with image decoding provided by Magick.NET 15. Download the English build for the YingView name and English interface, or the Simplified Chinese build for the 映窗 name and Chinese interface.
 
-**Version:** 0.3.12 Preview · **Architecture:** x64
+**Version:** 0.3.13 Preview · **Architecture:** x64
 
 The official client is free for personal, freelance, studio and company use.
 The current release has no paid feature gates or in-app purchases.
@@ -36,7 +36,7 @@ YingView opens and compares images locally. Viewing, rotating, and mirroring do 
 
 ## Download and build
 
-This repository contains the 0.3.12 Preview source for Windows x64. Check the version on [GitHub Releases](https://github.com/shixi-11/yingview/releases) for the builds currently available to download; a source update does not automatically publish new download assets. The Microsoft Store submission has not been made.
+This repository contains the 0.3.13 Preview source for Windows x64. Check the version on [GitHub Releases](https://github.com/shixi-11/yingview/releases) for the builds currently available to download; a source update does not automatically publish new download assets. The Microsoft Store submission has not been made.
 
 Choose the download whose language matches your preference. The selected build also determines the app name, icon, and installed shortcut language.
 
@@ -47,6 +47,8 @@ To build from source, install the .NET 10 SDK and run:
 ```
 
 The generated `Install.ps1` can be run with `-KeepRunningVersion` to install an update alongside a running version and update the shortcuts. Reopen the app from its updated shortcut to use the new version.
+
+Windows standalone clients provide **Check for updates** in the menu. Automatic checks run after the first window appears, at most once per day; downloading and installing require your choice. See [updates](docs/updates.md).
 
 ## License
 

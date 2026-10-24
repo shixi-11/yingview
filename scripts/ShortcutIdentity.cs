@@ -30,6 +30,8 @@ public static class YingViewShortcutIdentity
     private static extern int PropVariantClear(ref PropVariant value);
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern void SHChangeNotify(uint eventId, uint flags, string item1, IntPtr item2);
+    [DllImport("shell32.dll", ExactSpelling = true)]
+    private static extern void SHChangeNotify(uint eventId, uint flags, IntPtr item1, IntPtr item2);
 
     public static void Set(string shortcutPath, string appId)
     {
@@ -46,5 +48,10 @@ public static class YingViewShortcutIdentity
             SHChangeNotify(0x00002000, 0x0005, shortcutPath, IntPtr.Zero);
         }
         finally { PropVariantClear(ref value); Marshal.ReleaseComObject(store); }
+    }
+
+    public static void NotifyAssociationsChanged()
+    {
+        SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);
     }
 }

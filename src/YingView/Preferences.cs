@@ -21,6 +21,8 @@ public sealed class Preferences
     public bool CompactToolbar { get; set; }
     public List<ViewerTheme> PersonalStyles { get; set; } = [];
     public List<string> RecentFiles { get; set; } = [];
+    public bool AutoCheckUpdates { get; set; } = true;
+    public DateTimeOffset? LastUpdateCheckUtc { get; set; }
     private static string DefaultFileName => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YingView", "settings.json");
     private string FileName => _storagePath ?? DefaultFileName;
     public static Preferences Load()

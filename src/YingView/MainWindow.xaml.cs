@@ -14,6 +14,7 @@ using Microsoft.Win32;
 using YingView.Core;
 using YingView.Imaging;
 using YingView.Files;
+using YingView.Updates;
 
 namespace YingView;
 
@@ -39,6 +40,8 @@ public partial class MainWindow : Window
     private bool _chromeHidden;
     private bool _loading;
     private bool _deleting;
+    private bool _updateChecked;
+    private UpdateWindow? _updateWindow;
     private double _interfaceScale;
     private bool _compactToolbar;
     private WindowState _previousState;
@@ -71,6 +74,20 @@ public partial class MainWindow : Window
         DragOver += (_, e) => { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
         Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] paths) await OpenPaths(paths); e.Handled = true; };
         SourceInitialized += (_, _) => SetDarkTitleBar();
+        ContentRendered += async (_, _) =>
+        {
+            if (_updateChecked) return;
+            _updateChecked = true;
+            // Keep the first image independent of update-network latency.
+            await Task.Delay(2000);
+            if (!IsVisible || App.IsStoreManaged || !_settings.AutoCheckUpdates ||
+                _settings.LastUpdateCheckUtc is { } last && DateTimeOffset.UtcNow - last < TimeSpan.FromHours(24)) return;
+            _settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow;
+            SaveSettings();
+            using var updates = new UpdateService();
+            var result = await updates.CheckAsync(typeof(App).Assembly.GetName().Version!, _settings.Language);
+            if (IsVisible && result.Status == UpdateCheckStatus.UpdateAvailable) ShowUpdates(result);
+        };
         SizeChanged += (_, _) => ApplyResponsiveToolbar();
         Loaded += async (_, _) =>
         {
@@ -175,6 +192,10 @@ public partial class MainWindow : Window
         MoreMenu.Items.Add(new Separator());
         MoreMenu.Items.Add(Item(T("快捷键", "Keyboard shortcuts") + "    F1", ShowHelp));
         MoreMenu.Items.Add(Item(T("许可信息", "Licenses"), ShowLicenses));
+        MoreMenu.Items.Add(Item(T("检查更新…", "Check for updates…"), () => ShowUpdates()));
+        if (!App.IsStoreManaged)
+            MoreMenu.Items.Add(Item(T("自动检查更新", "Check for updates automatically"), () =>
+            { _settings.AutoCheckUpdates = !_settings.AutoCheckUpdates; SaveSettings(); BuildMenu(); }, _settings.AutoCheckUpdates));
         MoreMenu.Items.Add(Item(T("关于映窗", "About YingView"), () => MessageBox.Show(this,
             T($"映窗 {DisplayVersion} 预览版\n由光之十一开发\n\n本地查看，无广告，无图片上传。\n源码：github.com/shixi-11/yingview", $"YingView {DisplayVersion} Preview\nCreated by Shixi Lin\n\nLocal viewing. No ads. No image uploads.\nSource: github.com/shixi-11/yingview"), T("关于映窗", "About YingView"))));
     }
@@ -187,6 +208,29 @@ public partial class MainWindow : Window
         var text = new TextBox { Text = GetLicenseText(), IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Background = (Brush)Application.Current.Resources["BarBrush"], Foreground = (Brush)Application.Current.Resources["TextBrush"], Padding = new Thickness(20), FontSize = 13, BorderThickness = new Thickness(0) };
         new Window { Owner = this, Title = T("许可信息", "Licenses"), Width = 760, Height = 580, MinWidth = 400, MinHeight = 300, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = text }.ShowDialog();
+    }
+    private void ShowUpdates(UpdateCheckResult? initialResult = null)
+    {
+        if (_updateWindow is { IsVisible: true }) { _updateWindow.Activate(); return; }
+        var dialog = new UpdateWindow(typeof(App).Assembly.GetName().Version, _settings.Language, App.IsStoreManaged, initialResult: initialResult) { Owner = this };
+        _updateWindow = dialog;
+        dialog.Closed += (_, _) => _updateWindow = null;
+        dialog.InstallAndRestartRequested += async (_, update) =>
+        {
+            try
+            {
+                await UpdateInstaller.VerifyBeforeRestartAsync(update);
+                SaveSettings();
+                var start = new ProcessStartInfo(update.FilePath) { UseShellExecute = false };
+                start.ArgumentList.Add("--install-update");
+                if (_current is { } path && File.Exists(path)) start.ArgumentList.Add(path);
+                _ = Process.Start(start) ?? throw new IOException("The updater could not start.");
+                dialog.Close(); Close();
+            }
+            catch { MessageBox.Show(dialog, T("更新未能启动，当前版本仍可继续使用。请重试下载。", "The update could not start. You can keep using this version. Please download it again."),
+                T("更新未完成", "Update not completed"), MessageBoxButton.OK, MessageBoxImage.Warning); }
+        };
+        dialog.Show();
     }
     internal string GetLicenseText()
     {

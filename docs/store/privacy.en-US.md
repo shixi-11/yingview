@@ -14,6 +14,8 @@ When an unhandled application error occurs, YingView may write diagnostic detail
 
 ## Data sharing and retention
 
+The standalone Windows client can check the project's public GitHub Releases for updates after the first window appears, at most once per day. You can turn this off under **Check for updates automatically**, or check manually. GitHub receives the network connection and ordinary request headers, but the app does not include your images or local file paths. An update is downloaded only when you choose to download it, and installed only when you choose **Install and restart**. The Microsoft Store client uses Microsoft Store updates and does not use the standalone GitHub updater.
+
 The app does not transmit images, preferences, comparison marks, CSV exports, or diagnostic details to the developer or third parties. Local preferences and diagnostic files remain until the user clears or removes them. CSV exports remain wherever the user saves them.
 
 The client has no in-app purchases or payment processing.

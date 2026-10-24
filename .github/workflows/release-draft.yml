@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Preview version, for example v0.2.0-preview.1'
+        description: 'Version matching the client, for example v0.3.13 or v0.3.13-preview.1'
         required: true
         type: string
 permissions:
@@ -27,7 +27,9 @@ jobs:
       - name: Validate version
         shell: pwsh
         run: |
-          if ($env:RELEASE_VERSION -notmatch '^v\d+\.\d+\.\d+-preview\.\d+$') { throw 'Use a preview version such as v0.2.0-preview.1.' }
+          if ($env:RELEASE_VERSION -notmatch '^v\d+\.\d+\.\d+(?:-preview\.\d+)?$') { throw 'Use a stable or preview client version.' }
+          $project = [xml](Get-Content src/YingView/YingView.csproj -Raw)
+          if ($env:RELEASE_VERSION.TrimStart('v').Split('-')[0] -ne [string]$project.Project.PropertyGroup.Version) { throw 'Release and client versions must match.' }
       - name: Test image decoding and Store rules
         timeout-minutes: 5
         shell: pwsh
@@ -58,5 +60,7 @@ jobs:
           $existing = gh release list --json tagName --limit 100 | ConvertFrom-Json
           if ($LASTEXITCODE) { throw 'Could not check existing releases.' }
           if ($existing.tagName -contains $env:RELEASE_VERSION) { throw 'This release already exists; inspect it before retrying.' }
-          gh release create $env:RELEASE_VERSION --draft --prerelease --target $env:GITHUB_SHA --title "YingView $env:RELEASE_VERSION" --notes-file output/launch/release.md output/release-assets/YingView-zh-CN.exe output/release-assets/YingView-en-US.exe LICENSE NOTICE THIRD-PARTY-NOTICES.md
+          $flags = @('--draft')
+          if ($env:RELEASE_VERSION -like '*-preview.*') { $flags += '--prerelease' }
+          gh release create $env:RELEASE_VERSION @flags --target $env:GITHUB_SHA --title "YingView $env:RELEASE_VERSION" --notes-file output/launch/release.md output/release-assets/YingView-zh-CN.exe output/release-assets/YingView-en-US.exe LICENSE NOTICE CLIENT-LICENSE.txt CLIENT-LICENSE.zh-CN.txt LICENSING.md THIRD-PARTY-NOTICES.md
           if ($LASTEXITCODE) { throw 'Draft creation failed or outcome is unknown. Inspect Releases before retrying.' }

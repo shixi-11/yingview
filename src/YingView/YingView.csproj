@@ -9,7 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>YingView</AssemblyName>
     <RootNamespace>YingView</RootNamespace>
-    <Version>0.3.12</Version>
+    <Version>0.3.13</Version>
     <ClientLanguage Condition="'$(ClientLanguage)' == ''">auto</ClientLanguage>
     <Product Condition="'$(ClientLanguage)' != 'zh-CN'">YingView</Product>
     <Product Condition="'$(ClientLanguage)' == 'zh-CN'">映窗</Product>
@@ -36,6 +36,10 @@
     <EmbeddedResource Include="../../NOTICE" LogicalName="YingView.NOTICE" />
     <EmbeddedResource Include="../../CLIENT-LICENSE.txt" LogicalName="YingView.CLIENT-LICENSE" />
     <EmbeddedResource Include="../../CLIENT-LICENSE.zh-CN.txt" LogicalName="YingView.CLIENT-LICENSE.zh-CN" WithCulture="false" />
+    <EmbeddedResource Include="../../LICENSING.md" LogicalName="YingView.LICENSING" />
+    <EmbeddedResource Include="../../THIRD-PARTY-NOTICES.md" LogicalName="YingView.THIRD-PARTY-NOTICES" />
+    <EmbeddedResource Include="../../scripts/Install.ps1" LogicalName="YingView.UpdateInstaller.ps1" />
+    <EmbeddedResource Include="../../scripts/ShortcutIdentity.cs" LogicalName="YingView.ShortcutIdentity.cs" />
     <None Include="../../LICENSING.md" Pack="true" PackagePath="" />
     <EmbeddedResource Include="../../ThirdParty/*.txt" LogicalName="YingView.ThirdParty.%(Filename).txt" />
     <ProjectReference Include="../YingView.Core/YingView.Core.csproj" />

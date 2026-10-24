@@ -134,6 +134,7 @@ internal static class Program
         {
             VerifyClientLanguageBranding(window, settings);
             VerifyFreeClientTerms(window, settings);
+            Pump(YingView.AppTests.UpdateAssertions.Run(Output));
             VerifyLayout(window);
             YingView.AppTests.BackgroundAssertions.Run(window, Output);
             var originalBackground = settings.Background;
@@ -195,6 +196,7 @@ internal static class Program
                 VerifyStyleCancel(settings);
                 VerifyStyleApply();
                 VerifyDefaultAppsWindow();
+                VerifyUpdateWindows();
                 // The representative UI captures above are rendered before any delete operation.
             }
             finally
@@ -659,6 +661,23 @@ internal static class Program
             chinese.Close();
         }
         finally { Application.Current.Resources["ControlTextSize"] = originalSize; }
+    }
+
+    private static void VerifyUpdateWindows()
+    {
+        foreach (var language in new[] { "zh", "en" })
+        {
+            var result = new YingView.Updates.UpdateCheckResult(YingView.Updates.UpdateCheckStatus.UpdateAvailable, new Version(0,4,0), "A faster, clearer viewer",
+                "https://github.com/shixi-11/yingview/releases/tag/v0.4.0", "https://github.com/shixi-11/yingview/releases/download/v0.4.0/YingView-zh-CN.exe", "YingView-zh-CN.exe", "sha256:"+new string('0',64));
+            var update = new YingView.Updates.UpdateWindow(new Version(0,3,13),language,initialResult:result);
+            update.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            Check(((Button)Field(update,"_primary")).Content.ToString()==(language=="zh"?"下载更新":"Download update"),"The update notice must offer the correct localized download action.");
+            SaveWindowContentReviewPng(update,"update-"+language+".png",500,360); update.Close();
+        }
+        var store = new YingView.Updates.UpdateWindow(new Version(0,3,13),"zh",storeManaged:true);
+        store.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+        Check(((Button)Field(store,"_primary")).Visibility==Visibility.Collapsed,"Store clients must not offer standalone installation.");store.Close();
+        Keyboard.ClearFocus();
     }
 
     private static void VerifyStyleApply()
