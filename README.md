@@ -42,6 +42,8 @@ To build from source, install the .NET 10 SDK and run:
 .\scripts\build.ps1
 ```
 
+The generated `Install.ps1` can be run with `-KeepRunningVersion` to install an update alongside a running version and update the shortcuts. Reopen the app from its updated shortcut to use the new version.
+
 ## License
 
 YingView is provided under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use requires separate written permission from the copyright holder. Third-party dependencies are governed by their own licenses.

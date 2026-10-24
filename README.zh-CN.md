@@ -42,6 +42,8 @@ macOS 原生客户端位于 `src/YingView.macOS`，使用 SwiftUI、AppKit 和�
 .\scripts\build.ps1
 ```
 
+生成的 `Install.ps1` 支持 `-KeepRunningVersion`：在保留当前运行窗口的情况下独立安装更新并切换快捷方式。之后从更新后的快捷方式重新打开应用，即可使用新版。
+
 ## 许可
 
 映窗采用 [PolyForm Noncommercial License 1.0.0](LICENSE)。商业用途须另行取得著作权人书面许可。第三方依赖遵循各自的许可证。

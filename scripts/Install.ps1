@@ -1,5 +1,5 @@
 ﻿# Optional per-user installation. No administrator privileges or default-app changes.
-param([string]$Source = $PSScriptRoot)
+param([string]$Source = $PSScriptRoot, [switch]$KeepRunningVersion)
 $ErrorActionPreference = 'Stop'
 $client = Join-Path $Source 'YingView.exe'
 if (-not (Test-Path -LiteralPath $client)) { throw 'Place this script beside the published YingView.exe.' }
@@ -13,6 +13,11 @@ if (Test-Path -LiteralPath $manifestPath) {
 }
 $displayName = if ($language -eq 'zh-CN') { '映窗' } else { 'YingView' }
 $destination = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) "Programs/YingView-$language"
+if ($KeepRunningVersion) {
+    $version = if ($manifest) { [string]$manifest.Version } else { '' }
+    if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'A valid client version is required for a side-by-side update.' }
+    $destination = Join-Path $destination "versions/$version"
+}
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
 foreach ($file in @('YingView.exe','LICENSE','NOTICE','THIRD-PARTY-NOTICES.md')) {
     $from = Join-Path $Source $file
