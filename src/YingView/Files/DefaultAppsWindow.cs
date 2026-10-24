@@ -17,7 +17,7 @@ public sealed class DefaultAppsWindow : Window
     private readonly StackPanel _formats = new();
     private readonly TextBlock _message = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 18) };
     private readonly Button _openButton;
-    private bool _started, _opening, _waiting, _launchFailed, _allSet, _batchAttempted;
+    private bool _started, _opening, _waiting, _launchFailed, _allSet, _batchAttempted, _batchUnavailable;
     private string T(string zh, string en) => _zh ? zh : en;
 
     public DefaultAppsWindow(string language, bool startImmediately = false)
@@ -75,7 +75,7 @@ public sealed class DefaultAppsWindow : Window
         Refresh();
         try
         {
-            if (_batch)
+            if (_batch && !_batchUnavailable)
             {
                 _batchAttempted = true;
                 var result = await Task.Run(() => _setAllDefaults!(_language));
@@ -88,6 +88,7 @@ public sealed class DefaultAppsWindow : Window
                 _launchFailed = !result.SettingsLaunchSucceeded;
             }
         }
+        catch (NotSupportedException) { _waiting = false; _launchFailed = true; _batchUnavailable = true; }
         catch { _waiting = false; _launchFailed = true; }
         finally { _opening = false; Refresh(); }
     }
@@ -111,10 +112,12 @@ public sealed class DefaultAppsWindow : Window
         _openButton.IsEnabled = !_opening && !_allSet;
         _openButton.Content = _opening ? T("正在设置…", "Setting up…")
             : _allSet ? T("已设为默认", "Set as default")
+            : _batchUnavailable ? T("前往系统设置", "Open Windows Settings")
             : _batch ? T(_batchAttempted ? "重试全部设置" : "确认并设置全部", _batchAttempted ? "Retry setup" : "Confirm and set all")
             : T("设为默认", "Set as default");
         _message.Text = _opening ? T("正在设置图片关联并检查结果，请稍候。", "Setting image associations and checking the result. Please wait.")
             : _allSet ? T("支持的图片格式现在会默认用映窗打开。", "Supported image formats now open with YingView by default.")
+            : _batchUnavailable ? T("当前系统需通过 Windows 设置确认默认应用。", "This Windows configuration requires confirmation in Windows Settings.")
             : _batch ? (_launchFailed
                 ? T("部分格式未能完成设置，请重试。", "Some formats could not be set. Please try again.")
                 : T($"确认后，将把 {associations.Count} 种图片格式设为默认用映窗打开：\nPNG、JPG、JPEG、GIF、WebP、AVIF、BMP、TIF、TIFF、ICO。", $"Confirm to open all {associations.Count} supported image formats with YingView by default:\nPNG, JPG, JPEG, GIF, WebP, AVIF, BMP, TIF, TIFF, ICO."))

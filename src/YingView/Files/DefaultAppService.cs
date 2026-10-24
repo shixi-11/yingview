@@ -38,6 +38,10 @@ public static class DefaultAppService
         if (!SupportsBatchSetup) throw new InvalidOperationException("Packaged apps must use Windows Settings.");
         if (!File.Exists(plan.ExecutablePath)) throw new FileNotFoundException("The viewer executable is missing.", plan.ExecutablePath);
 
+        // Verify the actual profile before any compatibility writes; new or unknown hash formats fail closed.
+        var effectiveBefore = GetAssociations(plan.Language);
+        var choiceWriter = LegacyAssociationChoice.OpenVerified(effectiveBefore);
+
         var previous = plan.Extensions.Select(extension =>
         {
             using var classic = Registry.CurrentUser.OpenSubKey($@"Software\Classes\{extension}");
@@ -58,17 +62,18 @@ public static class DefaultAppService
             if (string.Equals(old.EffectiveProgId, plan.ProgId, StringComparison.OrdinalIgnoreCase)) continue;
             try
             {
-                using (var extensionKey = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{old.Extension}", true)!)
-                    extensionKey.SetValue("", plan.ProgId, RegistryValueKind.String);
-                // Removing a stale per-user choice lets Windows resolve the classic extension mapping.
-                // Request deletion via its parent; do not change permissions or disable protection if refused.
-                using var parent = Registry.CurrentUser.OpenSubKey(
-                    $@"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\{old.Extension}", writable: true);
-                parent?.DeleteSubKey("UserChoice", throwOnMissingSubKey: false);
+                choiceWriter.Write(old.Extension, plan.ProgId);
             }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException)
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException or System.ComponentModel.Win32Exception)
             {
                 errors[old.Extension] = ex.Message;
+                // A rejected change must not intentionally leave a deleted default in its place.
+                if (old.EffectiveProgId is { Length: > 0 } original && original != "Unknown")
+                {
+                    try { choiceWriter.Write(old.Extension, original); }
+                    catch (Exception restoreError) when (restoreError is UnauthorizedAccessException or IOException or System.Security.SecurityException or System.ComponentModel.Win32Exception)
+                    { errors[old.Extension] += " Restore: " + restoreError.Message; }
+                }
             }
         }
         SHChangeNotify(0x08000000, 0x1000, IntPtr.Zero, IntPtr.Zero); // SHCNE_ASSOCCHANGED, SHCNF_FLUSH

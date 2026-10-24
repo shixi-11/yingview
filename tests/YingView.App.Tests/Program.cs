@@ -20,6 +20,37 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--make-shell-fixtures")
+        {
+            var folder = Path.GetFullPath(args[1]); Directory.CreateDirectory(folder);
+            var formats = new (string Extension, ImageMagick.MagickFormat Format)[]
+            {
+                ("png", ImageMagick.MagickFormat.Png), ("jpg", ImageMagick.MagickFormat.Jpeg),
+                ("jpeg", ImageMagick.MagickFormat.Jpeg), ("gif", ImageMagick.MagickFormat.Gif),
+                ("webp", ImageMagick.MagickFormat.WebP), ("avif", ImageMagick.MagickFormat.Avif),
+                ("bmp", ImageMagick.MagickFormat.Bmp), ("tif", ImageMagick.MagickFormat.Tiff),
+                ("tiff", ImageMagick.MagickFormat.Tiff), ("ico", ImageMagick.MagickFormat.Ico)
+            };
+            foreach (var (extension, format) in formats)
+            {
+                var path = Path.Combine(folder, "association-test." + extension);
+                using (var image = new ImageMagick.MagickImage(ImageMagick.MagickColors.Teal, 128, 96)) image.Write(path, format);
+                var document = YingView.Imaging.ImageLoader.Load(path);
+                Check(document.Width > 0 && document.Height > 0 && document.Frames.Count > 0, "Shell fixtures must decode successfully before use.");
+            }
+            Console.WriteLine("Created and decoded all 10 shell-opening fixtures.");
+            return 0;
+        }
+        if (args.Length == 2 && args[0] == "--verify-default-choice-format")
+        {
+            var actual = DefaultAppService.GetAssociations("zh");
+            var writer = LegacyAssociationChoice.OpenVerified(actual);
+            File.WriteAllText(Path.GetFullPath(args[1]), System.Text.Json.JsonSerializer.Serialize(
+                actual.Select(a => new { a.Extension, a.ProgId, HashMatchesEffectiveChoice = writer.MatchesEffective(a) }),
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            Console.WriteLine("The effective choice format was verified without modifying associations.");
+            return 0;
+        }
         if (args.Length == 3 && args[0] == "--report-defaults")
         {
             File.WriteAllText(Path.GetFullPath(args[2]), System.Text.Json.JsonSerializer.Serialize(
@@ -32,9 +63,35 @@ internal static class Program
         {
             var plan = DefaultAppService.CreateRegistrationPlan("zh", Path.GetFullPath(args[1]));
             var before = DefaultAppService.GetAssociations("zh");
-            var result = DefaultAppService.SetAllDefaults(plan);
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
+            var testApp = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            testApp.InitializeComponent(); testApp.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            var calls = 0;
+            DefaultAppService.BatchResult? result = null;
+            var confirmation = new DefaultAppsWindow("zh", true, _ => throw new Exception("Bulk setup must not launch Settings."),
+                DefaultAppService.GetAssociations, _ =>
+                {
+                    Interlocked.Increment(ref calls);
+                    result = DefaultAppService.SetAllDefaults(plan);
+                    return result;
+                }, batch: true);
+            confirmation.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            Check(calls == 0, "Opening the real confirmation must not modify defaults.");
+            var needsSetup = before.Any(a => !a.IsYingView);
+            ((Button)Field(confirmation, "_openButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var deadline = DateTime.UtcNow.AddSeconds(20);
+            while ((bool)Field(confirmation, "_opening") && DateTime.UtcNow < deadline)
+            {
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Background);
+                Thread.Sleep(20);
+            }
+            Check(calls == (needsSetup ? 1 : 0), "A single confirmation must invoke exactly one real batch operation.");
+            result ??= new DefaultAppService.BatchResult(DefaultAppService.GetAssociations("zh"), "", new Dictionary<string, string>());
+            SaveWindowContentReviewPng(confirmation, "default-apps-live-result-zh.png", 520, 330);
+            var statusText = ((TextBlock)Field(confirmation, "_status")).Text;
+            confirmation.Close();
             File.WriteAllText(Path.GetFullPath(args[2]), System.Text.Json.JsonSerializer.Serialize(new
-                { Windows = Environment.OSVersion.VersionString, Before = before, Result = result },
+                { Windows = Environment.OSVersion.VersionString, Before = before, ConfirmationClicks = 1, BatchInvocations = calls, StatusText = statusText, Result = result },
                 new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
             Console.WriteLine($"Verified {result.Associations.Count(a => a.IsYingView)}/{result.Associations.Count} image defaults. Backup: {result.BackupPath}");
             return result.AllSet ? 0 : 1;
@@ -131,6 +188,18 @@ internal static class Program
 
     private static void VerifyDefaultAppPlan()
     {
+        var hashVectors = new (string Input, string Expected)[]
+        {
+            ("a", ""), ("ab", ""), ("abcdefgh", "NRA+C4IVU9o="), ("hello world", "Drw6/KuEjS8="),
+            ("映窗.png", "u9d3y44SW9g="), ("a Unicode window 🪟 in an image viewer", "Eg8SHiXeJQ8="),
+            (".pngs-1-5-21-100-200-300-1001yingview.zh-cn01dcb06ea49f0000user choice set via windows user experience {d18b6dd5-6124-4341-9318-804003bafa0b}", "rGYHjSHkg6E=")
+        };
+        foreach (var (input, expected) in hashVectors)
+            Check(YingView.Files.AssociationHash.LegacyAssociationHash.Compute(input) == expected,
+                "Association hashes must match independently generated PS-SFTA vectors, including Unicode and the terminating NUL.");
+        Check(LegacyAssociationChoice.BuildCanonical(".PNG", "S-1-5-21-TEST", "YingView.zh-CN", 600000009)
+            .StartsWith(".pngs-1-5-21-testyingview.zh-cn0000000023c34600"),
+            "Choice input must use invariant lowercase and floor the registry timestamp to its UTC minute.");
         Check(ClientBranding.DesktopAppId("zh") == "Shixi.YingView.ZhCN" && ClientBranding.DesktopAppId("en") == "Shixi.YingView.EnUS", "Installer, shortcut and process identities must distinguish the language clients consistently.");
         var plan = DefaultAppService.CreateRegistrationPlan("zh", Path.GetFullPath("YingView.exe"));
         Check(plan.DisplayName == "映窗" && plan.ProgId == "YingView.zh-CN" && plan.Extensions.Contains(".png") && !plan.Extensions.Contains(".heic"), "Default app registration must follow localized branding and verified formats.");
@@ -215,6 +284,26 @@ internal static class Program
         SaveWindowContentReviewPng(english, "default-apps-confirm-en.png", 520, 330);
         Check(((TextBlock)Field(english, "_message")).Text.Contains("Confirm to open all 10"), "The English download must offer the same explicit bulk confirmation.");
         english.Close();
+
+        var unsupportedCalls = 0; var fallbackOpened = 0;
+        var unsupported = new DefaultAppsWindow("en", false, _ =>
+            {
+                fallbackOpened++;
+                return new DefaultAppService.OpenResult(true, true, "ms-settings:defaultapps");
+            }, Snapshot, _ => { Interlocked.Increment(ref unsupportedCalls); throw new NotSupportedException(); }, batch: true);
+        InvokeVoid(unsupported, "StartSetup");
+        batchDeadline = DateTime.UtcNow.AddSeconds(5);
+        while ((bool)Field(unsupported, "_opening") && DateTime.UtcNow < batchDeadline)
+        {
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Background);
+            Thread.Sleep(10);
+        }
+        Check(unsupportedCalls == 1 && fallbackOpened == 0
+            && ((Button)Field(unsupported, "_openButton")).Content.ToString() == "Open Windows Settings",
+            "An unverified Windows choice format must stop bulk writes and offer the system flow.");
+        InvokeVoid(unsupported, "StartSetup");
+        Check(unsupportedCalls == 1 && fallbackOpened == 1, "Fallback must not keep retrying an unsupported registry scheme.");
+        unsupported.Close();
     }
 
     private static void VerifyClientLanguageBranding(MainWindow englishWindow, Preferences englishSettings)
