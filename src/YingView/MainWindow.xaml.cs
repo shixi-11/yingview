@@ -169,7 +169,7 @@ public partial class MainWindow : Window
     }
     private void OpenDefaultSettings()
     {
-        new DefaultAppsWindow(_settings.Language) { Owner = this }.ShowDialog();
+        new DefaultAppsWindow(_settings.Language, startImmediately: true) { Owner = this }.ShowDialog();
     }
     private void ShowLicenses()
     {

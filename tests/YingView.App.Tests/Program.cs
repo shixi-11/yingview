@@ -124,11 +124,39 @@ internal static class Program
         var before = DefaultAppService.GetAssociations("zh");
         Check(before.Count == 10 && before.Any(a => a.ProgId is not null), "Read-only status must query effective Windows associations through the native API.");
         var dialog = new DefaultAppsWindow("zh");
-        SaveWindowContentReviewPng(dialog, "default-apps-zh.png", 520, 540);
+        SaveWindowContentReviewPng(dialog, "default-apps-zh.png", 520, 330);
         dialog.Close();
         var after = DefaultAppService.GetAssociations("zh");
         Check(before.SequenceEqual(after), "Opening or refreshing status must not silently change user defaults.");
         File.WriteAllText(Path.Combine(Output, "default-associations.json"), System.Text.Json.JsonSerializer.Serialize(after));
+
+        var count = 0; var opened = 0;
+        IReadOnlyList<DefaultAppService.Association> Snapshot(string _) => before.Select((a, i) =>
+            new DefaultAppService.Association(a.Extension, i < count ? "YingView.zh-CN" : a.ProgId, i < count)).ToArray();
+        var automatic = new DefaultAppsWindow("zh", true, _ =>
+        {
+            opened++;
+            return new DefaultAppService.OpenResult(true, true, "ms-settings:defaultapps");
+        }, Snapshot);
+        automatic.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+        Check(opened == 1 && ((TextBlock)Field(automatic, "_message")).Text.Contains("自动更新"), "Opening setup from the menu must launch the Windows flow immediately and explain automatic result detection.");
+        automatic.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+        Check(opened == 1, "Repeated Loaded events must not reopen Windows Settings.");
+        count = 4;
+        InvokeVoid(automatic, "OnActivated", EventArgs.Empty);
+        Check(((TextBlock)Field(automatic, "_status")).Text.Contains("4/10"), "Returning to the app must automatically read partial default changes.");
+        count = 10;
+        InvokeVoid(automatic, "OnActivated", EventArgs.Empty);
+        Check(!((Button)Field(automatic, "_openButton")).IsEnabled && ((TextBlock)Field(automatic, "_status")).Text.Contains("已是默认"), "Actual successful associations must switch to the completed state.");
+        InvokeVoid(automatic, "StartSetup");
+        Check(opened == 1, "A completed setup must not launch the Windows flow again.");
+        automatic.Close();
+
+        count = 0;
+        var failed = new DefaultAppsWindow("en", true, _ => new DefaultAppService.OpenResult(true, false, "ms-settings:defaultapps"), Snapshot);
+        failed.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+        Check(((Button)Field(failed, "_openButton")).IsEnabled && ((TextBlock)Field(failed, "_message")).Text.Contains("could not open"), "A failed system launch must remain retryable and must not claim that defaults changed.");
+        failed.Close();
     }
 
     private static void VerifyClientLanguageBranding(MainWindow englishWindow, Preferences englishSettings)
