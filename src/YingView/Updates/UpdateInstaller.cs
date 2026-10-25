@@ -36,7 +36,7 @@ internal static class UpdateInstaller
         {
             UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true
         };
-        foreach (var arg in new[] { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", Path.Combine(stage, "Install.ps1"), "-Source", stage, "-KeepRunningVersion", "-RestartRunningVersion" })
+        foreach (var arg in new[] { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", Path.Combine(stage, "Install.ps1"), "-Source", stage, "-RestartRunningVersion" })
             start.ArgumentList.Add(arg);
         if (openPath is not null && File.Exists(openPath)) { start.ArgumentList.Add("-OpenPath"); start.ArgumentList.Add(openPath); }
         using var process = Process.Start(start) ?? throw new IOException("Installer unavailable.");

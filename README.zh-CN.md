@@ -2,7 +2,7 @@
 
 映窗是一款面向 Windows 10 和 11 的本地图片查看器。打开图片或拖入文件夹，就能在宽阔、清爽的窗口里浏览。应用使用 .NET 10 与 WPF 构建，图片解码由 Magick.NET 15 提供。下载简体中文版本会使用“映窗”名称和中文界面；下载英文版本则使用 YingView 名称和英文界面。
 
-**版本：**0.3.14 预览版 · **架构：**x64
+**版本：**0.3.15 预览版 · **架构：**x64
 
 官方客户端可免费用于个人、接单、工作室和公司工作，当前版本没有付费功能门槛或应用内购买。
 
@@ -35,7 +35,7 @@ macOS 原生客户端位于 `src/YingView.macOS`，使用 SwiftUI、AppKit 和�
 
 ## 下载与构建
 
-本仓库包含面向 Windows x64 的 0.3.14 预览版源码。当前可下载的版本请以 [GitHub Releases](https://github.com/shixi-11/yingview/releases) 标注为准，源码更新不会自动发布新的下载文件。Microsoft Store 提交尚未进行。
+本仓库包含面向 Windows x64 的 0.3.15 预览版源码。当前可下载的版本请以 [GitHub Releases](https://github.com/shixi-11/yingview/releases) 标注为准，源码更新不会自动发布新的下载文件。Microsoft Store 提交尚未进行。
 
 请按偏好选择对应语言的下载文件。所选版本也决定应用名称、图标和安装后的快捷方式语言。
 
@@ -45,7 +45,7 @@ macOS 原生客户端位于 `src/YingView.macOS`，使用 SwiftUI、AppKit 和�
 .\scripts\build.ps1
 ```
 
-生成的 `Install.ps1` 支持 `-KeepRunningVersion`：在保留当前运行窗口的情况下独立安装更新并切换快捷方式。之后从更新后的快捷方式重新打开应用，即可使用新版。
+生成的 `Install.ps1` 会覆盖原有安装并清除旧版副本。使用 `-KeepRunningVersion` 时，可在保留当前运行窗口的情况下另行安装更新并切换快捷方式；之后从更新后的快捷方式重新打开应用，即可使用新版。下一次安装会再覆盖这份副本。
 
 Windows 独立版可在菜单中“检查更新”；自动检查在首个窗口显示后进行，最多每天一次，下载和安装均由用户选择。详见[更新说明](docs/updates.md)。
 

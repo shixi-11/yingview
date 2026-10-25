@@ -142,6 +142,19 @@ foreach ($ext in @('.png','.jpg','.jpeg','.gif','.webp','.avif','.bmp','.tif','.
 New-Item -Path 'HKCU:\Software\RegisteredApplications' -Force | Out-Null
 New-ItemProperty -Path 'HKCU:\Software\RegisteredApplications' -Name $displayName -Value $capabilityPath -PropertyType String -Force | Out-Null
 [YingViewShortcutIdentity]::NotifyAssociationsChanged()
+# Shortcuts and registration now point to the new client, so older side-by-side copies are removed unless a window still runs from them.
+$versionsRoot = Join-Path $installRoot 'versions'
+if (Test-Path -LiteralPath $versionsRoot) {
+    $runningPaths = @(Get-Process -Name YingView -ErrorAction SilentlyContinue | ForEach-Object { try { [IO.Path]::GetFullPath($_.Path) } catch { } })
+    $current = [IO.Path]::GetFullPath($destination).TrimEnd('\')
+    foreach ($old in Get-ChildItem -LiteralPath $versionsRoot -Directory) {
+        $oldPath = $old.FullName.TrimEnd('\')
+        if ($oldPath -eq $current) { continue }
+        if ($runningPaths | Where-Object { $_.StartsWith($oldPath + '\', [StringComparison]::OrdinalIgnoreCase) }) { continue }
+        try { Remove-Item -LiteralPath $oldPath -Recurse -Force } catch { }
+    }
+    if (-not (Get-ChildItem -LiteralPath $versionsRoot -Force | Select-Object -First 1)) { Remove-Item -LiteralPath $versionsRoot -Force }
+}
 if ($RestartRunningVersion) {
     if ($remainingProcesses.Count -eq 0) {
         $startArguments = @{}
