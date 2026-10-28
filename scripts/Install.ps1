@@ -107,40 +107,19 @@ if (Test-Path -LiteralPath $pinnedFolder) {
         [YingViewShortcutIdentity]::Set($shortcutPath, $desktopAppId)
     }
 }
-$key = "HKCU:\Software\Classes\YingView.$language"
-New-Item -Path $key -Force | Out-Null
-Set-Item -Path $key -Value $displayName
-New-ItemProperty -Path $key -Name 'FriendlyAppName' -Value $displayName -PropertyType String -Force | Out-Null
-New-ItemProperty -Path $key -Name 'AppUserModelID' -Value $desktopAppId -PropertyType String -Force | Out-Null
-New-Item -Path "$key\DefaultIcon" -Force | Out-Null
-Set-Item -Path "$key\DefaultIcon" -Value ('"' + $installed + '",0')
-New-Item -Path "$key\shell\open\command" -Force | Out-Null
-Set-Item -Path "$key\shell\open\command" -Value ('"' + $installed + '" "%1"')
-$appKey = 'HKCU:\Software\Classes\Applications\YingView.exe'
-New-Item -Path $appKey -Force | Out-Null
-New-ItemProperty -Path $appKey -Name 'FriendlyAppName' -Value $displayName -PropertyType String -Force | Out-Null
-New-Item -Path "$appKey\DefaultIcon" -Force | Out-Null
-Set-Item -Path "$appKey\DefaultIcon" -Value ('"' + $installed + '",0')
-New-Item -Path "$appKey\shell\open\command" -Force | Out-Null
-Set-Item -Path "$appKey\shell\open\command" -Value ('"' + $installed + '" "%1"')
-New-Item -Path "$appKey\SupportedTypes" -Force | Out-Null
-foreach ($ext in @('.png','.jpg','.jpeg','.gif','.webp','.avif','.bmp','.tif','.tiff','.ico')) {
-    New-ItemProperty -Path "$appKey\SupportedTypes" -Name $ext -Value '' -PropertyType String -Force | Out-Null
-    $openWith = "HKCU:\Software\Classes\$ext\OpenWithProgids"
-    New-Item -Path $openWith -Force | Out-Null
-    New-ItemProperty -Path $openWith -Name "YingView.$language" -Value ([byte[]]@()) -PropertyType None -Force | Out-Null
+# The installed client owns registration so installer and in-app setup cannot diverge.
+$registration = Start-Process -FilePath $installed -ArgumentList '--register-installed-client' -WindowStyle Hidden -PassThru
+if (-not $registration.WaitForExit(30000)) { throw 'Client registration did not finish within 30 seconds. Previous versions were retained.' }
+if ($registration.ExitCode -ne 0) { throw 'The installed client could not register its image-opening command.' }
+$expectedCommand = '"' + $installed + '" "%1"'
+foreach ($subkey in @("Software\Classes\YingView.$language\shell\open\command", 'Software\Classes\Applications\YingView.exe\shell\open\command')) {
+    $registeredKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($subkey)
+    try {
+        if (-not $registeredKey -or $registeredKey.GetValue('') -cne $expectedCommand) {
+            throw 'Image-opening registration did not point to the installed client. Previous versions were retained.'
+        }
+    } finally { if ($registeredKey) { $registeredKey.Dispose() } }
 }
-$capabilityPath = "Software\YingView\$language\Capabilities"
-$capabilities = "HKCU:\$capabilityPath"
-New-Item -Path "$capabilities\FileAssociations" -Force | Out-Null
-New-ItemProperty -Path $capabilities -Name ApplicationName -Value $displayName -PropertyType String -Force | Out-Null
-New-ItemProperty -Path $capabilities -Name ApplicationIcon -Value ('"' + $installed + '",0') -PropertyType String -Force | Out-Null
-New-ItemProperty -Path $capabilities -Name ApplicationDescription -Value $(if ($language -eq 'zh-CN') { '本地图片查看与对照审阅' } else { 'Local image viewing and comparison' }) -PropertyType String -Force | Out-Null
-foreach ($ext in @('.png','.jpg','.jpeg','.gif','.webp','.avif','.bmp','.tif','.tiff','.ico')) {
-    New-ItemProperty -Path "$capabilities\FileAssociations" -Name $ext -Value "YingView.$language" -PropertyType String -Force | Out-Null
-}
-New-Item -Path 'HKCU:\Software\RegisteredApplications' -Force | Out-Null
-New-ItemProperty -Path 'HKCU:\Software\RegisteredApplications' -Name $displayName -Value $capabilityPath -PropertyType String -Force | Out-Null
 [YingViewShortcutIdentity]::NotifyAssociationsChanged()
 # Shortcuts and registration now point to the new client, so older side-by-side copies are removed unless a window still runs from them.
 $versionsRoot = Join-Path $installRoot 'versions'

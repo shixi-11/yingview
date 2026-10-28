@@ -52,7 +52,8 @@ public static class ImageLoader
         var bitmap = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, pixels, checked(w * 4));
         bitmap.Freeze(); return bitmap;
     }
-    public static ImageDocument Load(string path)
+    public static ImageDocument Load(string path) => Load(path, AnimationBudget);
+    internal static ImageDocument Load(string path, long animationBudget)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         if (!Supports(path)) throw new InvalidDataException("Unsupported image extension.");
@@ -69,19 +70,39 @@ public static class ImageLoader
         if (images.Count > MaxFrames) throw new InvalidDataException("Animation exceeds the 200-frame limit.");
         string format = images[0].Format.ToString().ToUpperInvariant();
         long canvasPixels = Math.Max((long)info.Width * info.Height, (long)images[0].Page.Width * images[0].Page.Height);
-        if (images.Count > 1 && canvasPixels * 4 * images.Count > AnimationBudget)
-            throw new InvalidDataException("Animation exceeds the 256 MiB decoded-frame limit.");
+        long decodedBytes = checked(canvasPixels * 4 * images.Count);
+        if (images.Count > 1 && decodedBytes > 2L * 1024 * 1024 * 1024)
+            throw new InvalidDataException("Animation exceeds the temporary-frame storage limit.");
         if (images.Count > 1) images.Coalesce();
-        var frames = new List<BitmapSource>(); var delays = new List<int>();
-        foreach (var frame in images)
+        DiskBackedAnimationFrames? storage = null;
+        try
         {
-            ValidateSize(frame); Prepare(frame); frames.Add(Bitmap(frame));
-            delays.Add((int)Math.Clamp(frame.AnimationDelay * 1000L / Math.Max(1, frame.AnimationTicksPerSecond), 20, 60_000));
+            bool useDisk = images.Count > 1 && decodedBytes > animationBudget;
+            var frames = new List<BitmapSource>(); var delays = new List<int>();
+            foreach (var frame in images)
+            {
+                ValidateSize(frame); Prepare(frame);
+                if (!useDisk) frames.Add(Bitmap(frame));
+                else
+                {
+                    storage ??= new DiskBackedAnimationFrames((int)frame.Width, (int)frame.Height);
+                    if (frame.Width != storage.Width || frame.Height != storage.Height)
+                        throw new InvalidDataException("Animation frame dimensions are inconsistent.");
+                    frame.Depth = 8;
+                    storage.Append(frame.ToByteArray(MagickFormat.Bgra));
+                }
+                delays.Add((int)Math.Clamp(frame.AnimationDelay * 1000L / Math.Max(1, frame.AnimationTicksPerSecond), 20, 60_000));
+            }
+            storage?.Complete();
+            IReadOnlyList<BitmapSource> result = storage is null ? frames.AsReadOnly() : storage;
+            int width = result[0].PixelWidth, height = result[0].PixelHeight;
+            return new ImageDocument(result, delays.AsReadOnly(), width, height, format,
+                storage?.EstimatedBytes ?? frames.Sum(f => (long)f.PixelWidth * f.PixelHeight * 4),
+                null, Path.GetFullPath(path), (int)images[0].AnimationIterations);
         }
-        int width = frames[0].PixelWidth, height = frames[0].PixelHeight;
-        return new ImageDocument(frames.AsReadOnly(), delays.AsReadOnly(), width, height, format,
-            frames.Sum(f => (long)f.PixelWidth * f.PixelHeight * 4), null, Path.GetFullPath(path), (int)images[0].AnimationIterations);
+        catch { storage?.Dispose(); throw; }
     }
+
     public static BitmapSource LoadThumbnail(string path, int maxPixels = 160)
     {
         if (maxPixels < 1) throw new ArgumentOutOfRangeException(nameof(maxPixels));

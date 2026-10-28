@@ -197,6 +197,7 @@ internal static class Program
                 VerifyStyleApply();
                 VerifyDefaultAppsWindow();
                 VerifyUpdateWindows();
+                VerifyDiskBackedAnimationPlayback();
                 // The representative UI captures above are rendered before any delete operation.
             }
             finally
@@ -816,6 +817,59 @@ internal static class Program
         var info = new Native.QueryRecycleBinInfo { Size = (uint)Marshal.SizeOf<Native.QueryRecycleBinInfo>() };
         Marshal.ThrowExceptionForHR(Native.SHQueryRecycleBin(root, ref info)); return (info.Items, info.Bytes);
     }
+    private static void VerifyDiskBackedAnimationPlayback()
+    {
+        using var frames = new YingView.Imaging.DiskBackedAnimationFrames(4, 4);
+        foreach (var color in new[] { new byte[] { 0, 0, 255, 255 }, new byte[] { 255, 0, 0, 255 }, new byte[] { 0, 255, 0, 255 } })
+            frames.Append(Enumerable.Range(0, 16).SelectMany(_ => color).ToArray());
+        frames.Complete();
+        using var document = new YingView.Imaging.ImageDocument(frames, new[] { 120, 120, 120 }, 4, 4, "GIF", frames.EstimatedBytes);
+        var surface = new ImageSurface();
+        surface.Measure(new Size(80, 80)); surface.Arrange(new Rect(0, 0, 80, 80));
+        surface.SetDocument(document, ViewportFitMode.Contain);
+        byte[] Capture()
+        {
+            surface.UpdateLayout();
+            var rendered = new RenderTargetBitmap(80, 80, 96, 96, PixelFormats.Pbgra32);
+            rendered.Render(surface);
+            var pixel = new byte[4]; rendered.CopyPixels(new Int32Rect(40, 40, 1, 1), pixel, 4, 0); return pixel;
+        }
+        var initialPixel = Capture();
+        Check(initialPixel[2] == 255, $"The real image surface must render the first disk-backed frame: {string.Join(",", initialPixel)} / {surface.ActualWidth}x{surface.ActualHeight}.");
+        SpinUntil(() => (int)Field(surface, "_frame") == 1, TimeSpan.FromSeconds(2));
+        Check(Capture()[0] == 255, "The real animation timer must render the next full frame.");
+        surface.PauseAnimation();
+        var paused = (int)Field(surface, "_frame"); Pump(Task.Delay(180));
+        Check((int)Field(surface, "_frame") == paused, "Pause must freeze disk-backed playback.");
+        surface.PauseAnimation();
+        SpinUntil(() => (int)Field(surface, "_frame") == 2, TimeSpan.FromSeconds(2));
+        Check(Capture()[1] == 255, "Resume must continue disk-backed playback.");
+        surface.SetDocument(null, ViewportFitMode.Contain);
+        var owner = new MainWindow(new Preferences(Path.Combine(Output, "settings", "gif-cache.json")) { Language = "en" }, []);
+        InvokeVoid(owner, "Cache", "gif-cache", document);
+        InvokeVoid(owner, "RemoveCached", "GIF-CACHE");
+        Check(!((IEnumerable<string>)Field(owner, "_cacheOrder")).Any(), "Cache removal must match Windows path casing in both cache structures.");
+        Check(!File.Exists(frames.BackingPath), "Removing a cached animation must dispose its temporary file.");
+        using var closingFrames = new YingView.Imaging.DiskBackedAnimationFrames(4, 2);
+        closingFrames.Append(Enumerable.Repeat(new byte[] { 0, 0, 255, 128 }, 8).SelectMany(p => p).ToArray());
+        closingFrames.Complete();
+        var closingDocument = new YingView.Imaging.ImageDocument(closingFrames, new[] { 120 }, 4, 2, "GIF", closingFrames.EstimatedBytes);
+        InvokeVoid(owner, "Cache", "closing-gif", closingDocument);
+        var path = closingFrames.BackingPath;
+        Check(File.Exists(path), "Closing test must start with a live cached animation file.");
+        owner.Close();
+        Check(!File.Exists(path), "Closing a viewer must dispose cached animation files.");
+        using var reviewFrames = new YingView.Imaging.DiskBackedAnimationFrames(4, 2);
+        reviewFrames.Append(Enumerable.Repeat(new byte[] { 0, 0, 255, 128 }, 8).SelectMany(p => p).ToArray());
+        reviewFrames.Complete();
+        var reviewDocument = new YingView.Imaging.ImageDocument(reviewFrames, new[] { 120 }, 4, 2, "GIF", reviewFrames.EstimatedBytes);
+        var review = new ReviewWindow(new[] { "a.gif", "b.gif" }, "a.gif", false);
+        ((ImageSurface[])Field(review, "_surfaces"))[0].SetDocument(reviewDocument, ViewportFitMode.Contain);
+        var reviewPath = reviewFrames.BackingPath;
+        review.Close();
+        Check(!File.Exists(reviewPath), "Closing comparison must dispose its animation files.");
+    }
+
     private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
     private static class Native
     {

@@ -9,7 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>YingView</AssemblyName>
     <RootNamespace>YingView</RootNamespace>
-    <Version>0.3.15</Version>
+    <Version>0.3.16</Version>
     <ClientLanguage Condition="'$(ClientLanguage)' == ''">auto</ClientLanguage>
     <Product Condition="'$(ClientLanguage)' != 'zh-CN'">YingView</Product>
     <Product Condition="'$(ClientLanguage)' == 'zh-CN'">映窗</Product>

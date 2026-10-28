@@ -20,6 +20,13 @@ public partial class App : Application
             _ = SetCurrentProcessExplicitAppUserModelID(ClientBranding.DesktopAppId(ClientBranding.InitialLanguage));
         base.OnStartup(e);
         Arguments = e.Args;
+        if (e.Args is ["--register-installed-client"])
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            try { Files.DefaultAppService.RegisterInstallation(ClientBranding.InitialLanguage); Shutdown(0); }
+            catch { Shutdown(1); }
+            return;
+        }
         if (e.Args.FirstOrDefault() == "--install-update")
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

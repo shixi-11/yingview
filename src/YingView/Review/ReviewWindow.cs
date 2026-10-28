@@ -73,7 +73,7 @@ public sealed class ReviewWindow : Window
             {
                 _loadGeneration[i]++;
                 _sideLoading[i] = false;
-                _surfaces[i].SetDocument(null, ViewportFitMode.Contain);
+                ClearSide(i);
             }
         };
     }
@@ -255,7 +255,7 @@ public sealed class ReviewWindow : Window
         _sideReady[side] = false;
         _sideLoading[side] = true;
         foreach (var button in _decisionButtons[side]) button.IsEnabled = false;
-        _surfaces[side].SetDocument(null, ViewportFitMode.Contain);
+        ClearSide(side);
         _dimensions[side].Text = T("正在读取图片…", "Loading image…");
         _decisions[side].Text = T("读取中", "Loading");
         _decisions[side].Foreground = BrushFrom("#A9B1B8");
@@ -268,7 +268,7 @@ public sealed class ReviewWindow : Window
             {
                 if (!IsCurrentLoad(side, path, generation)) return;
                 var doc = await Task.Run(() => ImageLoader.Load(path));
-                if (!IsCurrentLoad(side, path, generation)) return;
+                if (!IsCurrentLoad(side, path, generation)) { doc.Dispose(); return; }
                 _surfaces[side].SetDocument(doc, ViewportFitMode.Contain);
                 _dimensions[side].Text = $"{doc.Width:N0} × {doc.Height:N0} px · {doc.Format}";
                 _marks.TryAdd(path, Pending);
@@ -284,7 +284,7 @@ public sealed class ReviewWindow : Window
         catch
         {
             if (!IsCurrentLoad(side, path, generation)) return;
-            _surfaces[side].SetDocument(null, ViewportFitMode.Contain);
+            ClearSide(side);
             _sideReady[side] = false;
             _sideLoading[side] = false;
             foreach (var button in _decisionButtons[side]) button.IsEnabled = false;
@@ -292,6 +292,13 @@ public sealed class ReviewWindow : Window
             _decisions[side].Text = T("不可用", "Unavailable");
             RefreshExportButton();
         }
+    }
+
+    private void ClearSide(int side)
+    {
+        var previous = _surfaces[side].Document;
+        _surfaces[side].SetDocument(null, ViewportFitMode.Contain);
+        previous?.Dispose();
     }
 
     private bool IsCurrentLoad(int side, string path, int generation) =>

@@ -12,4 +12,7 @@ public sealed record ImageDocument(
     long EstimatedBytes,
     string? Details = null,
     string? FilePath = null,
-    int LoopCount = 0);
+    int LoopCount = 0) : IDisposable
+{
+    public void Dispose() => (Frames as IDisposable)?.Dispose();
+}

@@ -165,6 +165,13 @@ public static class DefaultAppService
         return new OpenResult(registered, success, uri);
     }
 
+    internal static void RegisterInstallation(string language)
+    {
+        if (!SupportsBatchSetup) throw new InvalidOperationException("Store installations are registered by Windows.");
+        var executable = Environment.ProcessPath ?? throw new InvalidOperationException("The executable path is missing.");
+        RegisterCandidate(CreateRegistrationPlan(language, executable));
+    }
+
     private static void RegisterCandidate(RegistrationPlan plan)
     {
         using var classes = Registry.CurrentUser.CreateSubKey(@"Software\Classes", true)!;

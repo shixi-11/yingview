@@ -27,6 +27,7 @@ internal static class Program
         Run("corrupt file handling", TestCorruptFile);
         Run("100-million-pixel limit", TestPixelLimit);
         Run("201-frame limit", TestAnimationFrameLimit);
+        Run("large GIF uses bounded frame memory", TestLargeAnimation);
         Console.WriteLine($"PASS: {_passed}; FAIL: {_failed}; SKIP: {_skipped}");
         return _failed == 0 ? 0 : 1;
     }
@@ -92,6 +93,13 @@ internal static class Program
         PixelNear(document.Frames[2], 2, 2, 0, 0, 0, 0, 0, "Background disposal clears the prior full frame");
         PixelNear(document.Frames[2], 6, 6, 0, 0, 255, 255, 10, "GIF third frame shows blue after disposal");
         Pass("GIF disposal method is honored while coalescing");
+        using var stored = ImageLoader.Load(path, animationBudget: 1);
+        for (var i = 0; i < document.Frames.Count; i++)
+        {
+            Check(Pixels(stored.Frames[i]).SequenceEqual(Pixels(document.Frames[i])), "temporary GIF storage preserves alpha, disposal and channel values");
+            Equal(document.FrameDelaysMs[i], stored.FrameDelaysMs[i], "temporary GIF storage preserves frame timing");
+        }
+        Equal(document.LoopCount, stored.LoopCount, "temporary GIF storage preserves loop count");
     }
 
     private static void TestThumbnailUsesFirstFrameAndBoundsSize()
@@ -210,6 +218,26 @@ internal static class Program
         Throws<InvalidDataException>(() => ImageLoader.Load(path), "100-million-pixel image rejected before decode");
     }
 
+    private static void TestLargeAnimation()
+    {
+        var path = Path.Combine(FixtureDirectory, "large-animation.gif");
+        WriteGif(path, 65, 1024);
+        using var document = ImageLoader.Load(path);
+        Equal(65, document.Frames.Count, "large GIF retains every frame");
+        Equal(1024, document.Width, "large GIF retains full resolution");
+        Check(document.EstimatedBytes < 32L * 1024 * 1024, "large GIF retains bounded decoded memory");
+        PixelNear(document.Frames[0], 500, 500, 255, 0, 0, 255, 0, "large GIF first frame");
+        PixelNear(document.Frames[64], 500, 500, 0, 255, 0, 255, 0, "large GIF last frame");
+        PixelNear(document.Frames[2], 500, 500, 0, 0, 255, 255, 0, "large GIF backward seek");
+        PixelNear(document.Frames[0], 500, 500, 255, 0, 0, 255, 0, "large GIF loops back to the first frame");
+        using var source = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        Check(document.Frames is DiskBackedAnimationFrames, "large GIF uses temporary frame storage");
+        var backingPath = ((DiskBackedAnimationFrames)document.Frames).BackingPath;
+        Check(File.Exists(backingPath), "temporary animation storage exists during use");
+        document.Dispose();
+        Check(!File.Exists(backingPath), "closing an animation removes its temporary storage");
+    }
+
     private static void TestAnimationFrameLimit()
     {
         var path = Path.Combine(FixtureDirectory, "over-200-frames.gif");
@@ -223,7 +251,7 @@ internal static class Program
         PixelNear(thumbnail, thumbnail.PixelWidth / 2, thumbnail.PixelHeight / 2, 255, 0, 0, 255, 0, "201-frame thumbnail reads only the first frame");
     }
 
-    private static void WriteGif(string path, int frameCount)
+    private static void WriteGif(string path, int frameCount, uint size = 8)
     {
         using var images = new MagickImageCollection();
         for (var i = 0; i < frameCount; i++)
@@ -246,7 +274,7 @@ internal static class Program
                 continue;
             }
             var color = (i % 3) switch { 0 => MagickColors.Red, 1 => MagickColors.Lime, _ => MagickColors.Blue };
-            var frame = new MagickImage(color, 8, 8)
+            var frame = new MagickImage(color, size, size)
             {
                 AnimationDelay = (uint)(5 + (i % 3) * 2),
                 AnimationTicksPerSecond = 100,

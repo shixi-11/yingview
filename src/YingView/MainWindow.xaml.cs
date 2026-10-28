@@ -99,7 +99,9 @@ public partial class MainWindow : Window
         Closing += (_, _) =>
         {
             _slideshow.Stop(); _toastTimer.Stop(); ++_generation; ++_thumbGeneration; ++_openGeneration;
-            Surface.SetDocument(null, DefaultFit); _settings.Save();
+            Surface.SetDocument(null, DefaultFit);
+            foreach (var cached in _cache.Values) cached.Dispose();
+            _cache.Clear(); _cacheOrder.Clear(); _settings.Save();
         };
     }
 
@@ -441,7 +443,8 @@ public partial class MainWindow : Window
                     try { return generation != _generation ? null : ImageLoader.Load(path); }
                     finally { _decodeGate.Release(); }
                 });
-                if (doc is null || generation != _generation) return;
+                if (doc is null) return;
+                if (generation != _generation) { doc.Dispose(); return; }
                 Cache(path, doc);
             }
             if (generation != _generation) return;
@@ -475,7 +478,21 @@ public partial class MainWindow : Window
         _cache[path] = doc; _cacheOrder.AddLast(path);
         while (_cache.Count > 3 || (_cache.Count > 1 && _cache.Values.Sum(v => v.EstimatedBytes) > 256L * 1024 * 1024))
         {
-            var oldest = _cacheOrder.First!.Value; _cache.Remove(oldest); _cacheOrder.RemoveFirst();
+            RemoveCached(_cacheOrder.First!.Value);
+        }
+    }
+    private void RemoveCached(string path)
+    {
+        if (_cache.Remove(path, out var document))
+        {
+            if (ReferenceEquals(Surface.Document, document)) Surface.SetDocument(null, DefaultFit);
+            document.Dispose();
+        }
+        for (var node = _cacheOrder.First; node is not null;)
+        {
+            var next = node.Next;
+            if (string.Equals(node.Value, path, StringComparison.OrdinalIgnoreCase)) _cacheOrder.Remove(node);
+            node = next;
         }
     }
     private async Task BuildThumbnails()
@@ -601,7 +618,7 @@ public partial class MainWindow : Window
             {
                 ShowToast(T("未能移入回收站，图片已保留。", "Could not move this image to the Recycle Bin. The image was kept.")); return;
             }
-            _cache.Remove(path); _cacheOrder.Remove(path);
+            RemoveCached(path);
             _settings.RecentFiles.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
             int removedIndex = Array.FindIndex(_files, p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
             _files = _files.Where(p => !string.Equals(p, path, StringComparison.OrdinalIgnoreCase)).ToArray();
@@ -740,7 +757,7 @@ public partial class MainWindow : Window
     {
         if (_current is null || _deleting) return;
         var path = _current;
-        _cache.Remove(path); _cacheOrder.Remove(path);
+        RemoveCached(path);
         var directory = Path.GetDirectoryName(path);
         await OpenPaths([File.Exists(path) || !Directory.Exists(directory) ? path : directory!]);
     }
