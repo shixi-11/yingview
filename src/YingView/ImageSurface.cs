@@ -13,11 +13,12 @@ public sealed class ImageSurface : FrameworkElement
     public ImageDocument? Document { get; private set; }
     public Brush CanvasBrush { get; set; } = Brushes.Black;
     public string CanvasMode { get; set; } = "theme";
+    public Brush CustomCanvasBrush { get; set; } = Brushes.Gray;
     public string AlphaBackground { get; set; } = "dark";
     public Brush CanvasBackgroundBrush => CanvasMode switch
     {
         "black" => Brushes.Black, "white" => Brushes.White,
-        "gray" => Brushes.Gray, "checker" => Checker, _ => CanvasBrush
+        "gray" => Brushes.Gray, "checker" => Checker, "custom" => CustomCanvasBrush, _ => CanvasBrush
     };
     public bool Mirrored { get; private set; }
     public bool AnimationPaused { get; private set; }

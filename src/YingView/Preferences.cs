@@ -7,11 +7,12 @@ namespace YingView;
 
 public sealed class Preferences
 {
-    private readonly string? _storagePath;
+    private string? _storagePath;
     public Preferences() { }
     internal Preferences(string storagePath) { _storagePath = storagePath; }
     public string Language { get; set; } = ClientBranding.InitialLanguage;
     public string Background { get; set; } = "black";
+    public string CustomBackgroundColor { get; set; } = "#D6E4EF";
     public string DefaultFit { get; set; } = "contain";
     public bool Filmstrip { get; set; }
     public int AppearanceUiVersion { get; set; }
@@ -25,17 +26,20 @@ public sealed class Preferences
     public DateTimeOffset? LastUpdateCheckUtc { get; set; }
     private static string DefaultFileName => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YingView", "settings.json");
     private string FileName => _storagePath ?? DefaultFileName;
-    public static Preferences Load()
+    public static Preferences Load() => Load(DefaultFileName);
+    internal static Preferences Load(string fileName)
     {
         try
         {
-            var value = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(DefaultFileName)) ?? new();
+            var value = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(fileName)) ?? new();
+            value._storagePath = fileName;
             value.Theme.Validate();
             value.DefaultFit = "contain";
             value.Language = value.Language == "zh" ? "zh" : "en";
             if (ClientBranding.DistributionLanguage != "auto") value.Language = ClientBranding.InitialLanguage;
             if (value.Background == "dark") value.Background = "black";
-            if (value.Background is not ("theme" or "light" or "checker" or "black" or "white" or "gray")) value.Background = "black";
+            if (value.Background is not ("theme" or "light" or "checker" or "black" or "white" or "gray" or "custom")) value.Background = "black";
+            value.CustomBackgroundColor = CanvasColor.TryNormalize(value.CustomBackgroundColor, out var custom) ? custom : "#D6E4EF";
             value.RecentFiles = (value.RecentFiles ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Take(8).ToList();
             if (value.AppearanceUiVersion < 2) { value.Filmstrip = false; value.AppearanceUiVersion = 2; }
             if (value.TextScale is < 0.85 or > 1.3) value.TextScale = 1.0;
@@ -43,7 +47,7 @@ public sealed class Preferences
             value.PersonalStyles = value.PersonalStyles.Where(t => { try { t.Validate(); return true; } catch { return false; } }).ToList();
             return value;
         }
-        catch { return new() { AppearanceUiVersion = 2 }; }
+        catch { return new(fileName) { AppearanceUiVersion = 2 }; }
     }
     public bool Save()
     {

@@ -18,6 +18,7 @@ internal static class BackgroundAssertions
         Directory.CreateDirectory(outputDirectory);
         var settings = (Preferences)typeof(MainWindow).GetField("_settings", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
         var originalBackground = settings.Background;
+        var originalCustom = settings.CustomBackgroundColor;
         var setBackground = typeof(MainWindow).GetMethod("SetCanvasBackground", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var surface = (ImageSurface)typeof(MainWindow).GetField("Surface", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
 
@@ -58,6 +59,50 @@ internal static class BackgroundAssertions
         using var saved = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
         Check(saved.RootElement.GetProperty("Background").GetString() == "gray", "Selected canvas color must persist.");
 
+        Check(CanvasColor.TryNormalize(" ab12ef ", out var normalized) && normalized == "#AB12EF", "HEX entry must normalize optional #, case and whitespace.");
+        foreach (var invalid in new[] { "", "##123456", "#12345G", "#00123456", "Red", "#123456\nX" })
+            Check(!CanvasColor.TryNormalize(invalid, out _), "Invalid or transparent color values must be rejected.");
+        var picker = new CanvasColorWindow(false, "#D6E4EF");
+        static T Find<T>(DependencyObject parent, string name) where T : FrameworkElement
+        {
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T match && match.Name == name) return match;
+                try { return Find<T>(child, name); } catch (InvalidOperationException) { }
+            }
+            throw new InvalidOperationException("Missing color picker control: " + name);
+        }
+        picker.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
+        {
+            var hexBox = Find<System.Windows.Controls.TextBox>(picker, "ColorHex");
+            var apply = Find<System.Windows.Controls.Button>(picker, "ApplyColor");
+            hexBox.Text = "not-a-color";
+            Check(!apply.IsEnabled, "Invalid color must disable Apply.");
+            hexBox.Text = "19A7C2";
+            Check(apply.IsEnabled, "Valid HEX entry must enable Apply.");
+            apply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+        }));
+        Check(picker.ShowDialog() == true && picker.SelectedColor == "#19A7C2", "Apply must return the exact user-selected color.");
+        var cancelPicker = new CanvasColorWindow(true, "#19A7C2");
+        cancelPicker.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
+        {
+            Find<System.Windows.Controls.TextBox>(cancelPicker, "ColorHex").Text = "#FF0000";
+            cancelPicker.Close();
+        }));
+        Check(cancelPicker.ShowDialog() != true && cancelPicker.SelectedColor == "#19A7C2", "Closing the picker must not commit a draft color.");
+        settings.CustomBackgroundColor = picker.SelectedColor;
+        setBackground.Invoke(window, ["custom"]);
+        Check(((SolidColorBrush)surface.CanvasBackgroundBrush).Color == Color.FromRgb(25, 167, 194), "Custom selection must reach the actual viewing surface.");
+        Check(button.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Count(i => i.IsChecked) == 1, "Custom mode must be the only checked background choice.");
+        Check(((SolidColorBrush)title.Foreground).Color == Colors.Black, "Custom background text must choose readable ink.");
+        var customSettings = new Preferences(path) { Background = "custom", CustomBackgroundColor = "#19A7C2", AppearanceUiVersion = 2 };
+        Check(customSettings.Save(), "Custom color settings must save.");
+        var reloaded = Preferences.Load(path);
+        Check(reloaded.Background == "custom" && reloaded.CustomBackgroundColor == "#19A7C2", "Restart must restore the custom mode and exact color.");
+        customSettings.CustomBackgroundColor = "corrupt"; customSettings.Save();
+        Check(Preferences.Load(path).CustomBackgroundColor == "#D6E4EF", "Malformed stored colors must recover safely.");
+
         var transparent = BitmapSource.Create(2, 2, 96, 96, PixelFormats.Bgra32, null, new byte[16], 8);
         transparent.Freeze();
         var originalPixels = new byte[16]; transparent.CopyPixels(originalPixels, 8, 0);
@@ -80,6 +125,11 @@ internal static class BackgroundAssertions
         Save(grayFrame, Path.Combine(outputDirectory, "canvas-gray.png"));
         Check(Read(grayFrame, 0, 0).R == 128 && Read(grayFrame, 60, 40).R == 128 && Read(grayFrame, 119, 79).R == 128,
             "Gray must cover both the outer canvas and transparent PNG pixels.");
+        renderSurface.CanvasMode = "custom"; renderSurface.CustomCanvasBrush = ViewerTheme.Brush("#19A7C2"); renderSurface.InvalidateVisual();
+        var customFrame = Render(renderSurface, 120, 80);
+        Save(customFrame, Path.Combine(outputDirectory, "canvas-custom.png"));
+        Check(new[] { Read(customFrame, 0, 0), Read(customFrame, 60, 40), Read(customFrame, 119, 79) }.All(c => c == Color.FromRgb(25, 167, 194)),
+            "Custom color must fill the outer canvas and transparent PNG pixels with the exact same color.");
         renderSurface.CanvasMode = "checker"; renderSurface.InvalidateVisual();
         var checkerFrame = Render(renderSurface, 120, 80);
         Save(checkerFrame, Path.Combine(outputDirectory, "canvas-checker.png"));
@@ -92,6 +142,7 @@ internal static class BackgroundAssertions
         Check(originalPixels.SequenceEqual(afterPixels), "Changing the canvas must not modify image RGB or alpha data.");
         renderSurface.SetDocument(null, ViewportFitMode.Contain);
         host.RootVisual = null;
+        settings.CustomBackgroundColor = originalCustom;
         setBackground.Invoke(window, [originalBackground]);
     }
 
