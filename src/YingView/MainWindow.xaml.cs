@@ -299,7 +299,7 @@ public partial class MainWindow : Window
     private void ChooseCanvasColor()
     {
         var picker = new CanvasColorWindow(IsChinese, _settings.CustomBackgroundColor) { Owner = this };
-        if (picker.ShowDialog() != true) return;
+        if (picker.ShowDialog() != true) { BuildMenu(); return; }
         _settings.CustomBackgroundColor = picker.SelectedColor;
         SetCanvasBackground("custom");
     }

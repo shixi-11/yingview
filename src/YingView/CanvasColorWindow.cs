@@ -48,7 +48,7 @@ internal sealed class CanvasColorWindow : Window
     private readonly Border _preview = new() { Width = 50, Height = 36, CornerRadius = new CornerRadius(5), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 10, 0) };
     private readonly TextBlock _error = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
     private readonly Slider _hue = new() { Name = "ColorHue", Minimum = 0, Maximum = 359.9, SmallChange = 1, LargeChange = 15, Margin = new Thickness(0, 8, 0, 12) };
-    private readonly ColorField _field = new() { Height = 178, Focusable = true, Margin = new Thickness(0, 0, 0, 12) };
+    private readonly ColorField _field = new() { Name = "ColorArea", Height = 178, Focusable = true, Margin = new Thickness(0, 0, 0, 12) };
     private bool _refreshing;
     public string SelectedColor { get; private set; }
 
@@ -65,8 +65,12 @@ internal sealed class CanvasColorWindow : Window
         panel.Children.Add(new TextBlock { Text = T("选择背景颜色", "Choose a background color"), FontSize = 19, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 16) });
         AutomationProperties.SetName(_field, T("颜色区域：方向键调整饱和度和明度", "Color area: arrow keys adjust saturation and brightness"));
         panel.Children.Add(_field);
-        var hueStrip = new Border { Height = 9, CornerRadius = new CornerRadius(4), Background = new LinearGradientBrush(new GradientStopCollection {
+        var hueStrip = new Border { Name = "HueStrip", Height = 14, Cursor = Cursors.Hand, CornerRadius = new CornerRadius(4), Background = new LinearGradientBrush(new GradientStopCollection {
             new(Colors.Red, 0), new(Colors.Yellow, 1d/6), new(Colors.Lime, 2d/6), new(Colors.Cyan, .5), new(Colors.Blue, 4d/6), new(Colors.Magenta, 5d/6), new(Colors.Red, 1) }, 0) };
+        void DragHue(MouseEventArgs e) => _hue.Value = Math.Clamp(e.GetPosition(hueStrip).X / hueStrip.ActualWidth, 0, 1) * _hue.Maximum;
+        hueStrip.MouseLeftButtonDown += (_, e) => { hueStrip.CaptureMouse(); DragHue(e); e.Handled = true; };
+        hueStrip.MouseMove += (_, e) => { if (hueStrip.IsMouseCaptured) DragHue(e); };
+        hueStrip.MouseLeftButtonUp += (_, e) => { hueStrip.ReleaseMouseCapture(); e.Handled = true; };
         panel.Children.Add(hueStrip);
         AutomationProperties.SetName(_hue, T("色相", "Hue")); panel.Children.Add(_hue);
         var colors = new UniformGrid { Columns = 8, Margin = new Thickness(0, 0, 0, 16) };

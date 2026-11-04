@@ -84,6 +84,25 @@ internal static class BackgroundAssertions
             apply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
         }));
         Check(picker.ShowDialog() == true && picker.SelectedColor == "#19A7C2", "Apply must return the exact user-selected color.");
+        var dragPicker = new CanvasColorWindow(false, "#FF0000");
+        dragPicker.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
+        {
+            var hue = Find<System.Windows.Controls.Slider>(dragPicker, "ColorHue");
+            var field = Find<FrameworkElement>(dragPicker, "ColorArea");
+            var hex = Find<System.Windows.Controls.TextBox>(dragPicker, "ColorHex");
+            hue.Value = 120;
+            Check(hex.Text == "#00FF00", "Moving hue from red to green must update the selected color.");
+            void Key(System.Windows.Input.Key key) => field.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,
+                PresentationSource.FromVisual(field), 0, key) { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent });
+            Key(System.Windows.Input.Key.Left);
+            Check(hex.Text == "#03FF03", "The color area must support keyboard saturation adjustment.");
+            Key(System.Windows.Input.Key.Right); Key(System.Windows.Input.Key.Right); Key(System.Windows.Input.Key.Up);
+            Check(hex.Text == "#00FF00", "Keyboard adjustments must clamp at the color area boundaries.");
+            Key(System.Windows.Input.Key.Down);
+            Check(hex.Text == "#00FC00", "The color area must support keyboard brightness adjustment.");
+            Find<System.Windows.Controls.Button>(dragPicker, "ApplyColor").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+        }));
+        Check(dragPicker.ShowDialog() == true && dragPicker.SelectedColor == "#00FC00", "Palette adjustments must commit the actual selected color.");
         var cancelPicker = new CanvasColorWindow(true, "#19A7C2");
         cancelPicker.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
         {
@@ -96,6 +115,20 @@ internal static class BackgroundAssertions
         Check(((SolidColorBrush)surface.CanvasBackgroundBrush).Color == Color.FromRgb(25, 167, 194), "Custom selection must reach the actual viewing surface.");
         Check(button.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Count(i => i.IsChecked) == 1, "Custom mode must be the only checked background choice.");
         Check(((SolidColorBrush)title.Foreground).Color == Colors.Black, "Custom background text must choose readable ink.");
+        foreach (var mode in new[] { "black", "custom" })
+        {
+            setBackground.Invoke(window, [mode]);
+            var choice = button.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Single(i => Equals(i.Header, "Custom color…"));
+            new WindowInteropHelper(window).EnsureHandle();
+            window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() => Application.Current.Windows.OfType<CanvasColorWindow>().Single().Close()));
+            typeof(System.Windows.Controls.MenuItem).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(choice, null);
+            var menuFrame = new System.Windows.Threading.DispatcherFrame();
+            window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, new Action(() => menuFrame.Continue = false));
+            System.Windows.Threading.Dispatcher.PushFrame(menuFrame);
+            Check(settings.Background == mode, "Cancel through the menu must keep the original mode.");
+            Check(button.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Count(i => i.IsChecked) == 1,
+                "Cancel must restore exactly one checked background menu item.");
+        }
         var customSettings = new Preferences(path) { Background = "custom", CustomBackgroundColor = "#19A7C2", AppearanceUiVersion = 2 };
         Check(customSettings.Save(), "Custom color settings must save.");
         var reloaded = Preferences.Load(path);
