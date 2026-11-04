@@ -22,7 +22,9 @@
           <Button x:Name="ZoomInButton" Content="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Click="ZoomInClick" Padding="8,7" ToolTip="Zoom in"/>
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-          <Button x:Name="CanvasToggleButton" Click="CanvasToggleClick" Content="◐" FontSize="15" Padding="9,7" ToolTip="Switch canvas background"/>
+          <Button x:Name="CanvasToggleButton" Click="CanvasToggleClick" Padding="9,7" ToolTip="Switch canvas background">
+            <StackPanel Orientation="Horizontal"><Border x:Name="CanvasSwatch" Width="14" Height="14" CornerRadius="3" BorderThickness="1" BorderBrush="#8A9198" VerticalAlignment="Center"/><TextBlock x:Name="CanvasButtonLabel" Text="Background" Margin="6,0,0,0" VerticalAlignment="Center"/></StackPanel>
+          </Button>
           <Button x:Name="RotateButton" Content="&#xE7AD;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Padding="9,7" Click="RotateClick" ToolTip="Rotate clockwise"/>
           <Button x:Name="FullscreenButton" Content="&#xE740;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Padding="9,7" Click="FullscreenClick" ToolTip="Fullscreen"/>
           <Menu VerticalAlignment="Center"><MenuItem x:Name="MoreMenu" Header="•••" Foreground="{DynamicResource TextBrush}" FontSize="15"/></Menu>

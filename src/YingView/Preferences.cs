@@ -35,7 +35,7 @@ public sealed class Preferences
             value.Language = value.Language == "zh" ? "zh" : "en";
             if (ClientBranding.DistributionLanguage != "auto") value.Language = ClientBranding.InitialLanguage;
             if (value.Background == "dark") value.Background = "black";
-            if (value.Background is not ("theme" or "light" or "checker" or "black" or "white")) value.Background = "black";
+            if (value.Background is not ("theme" or "light" or "checker" or "black" or "white" or "gray")) value.Background = "black";
             value.RecentFiles = (value.RecentFiles ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Take(8).ToList();
             if (value.AppearanceUiVersion < 2) { value.Filmstrip = false; value.AppearanceUiVersion = 2; }
             if (value.TextScale is < 0.85 or > 1.3) value.TextScale = 1.0;

@@ -122,7 +122,7 @@ public partial class MainWindow : Window
         Tip(FitButton, T("保持比例，完整放大显示", "Enlarge to fit without cropping") + " · F");
         Tip(ActualButton, T("一个图片像素对应一个屏幕像素", "One image pixel per physical display pixel") + " · 1");
         Tip(RotateButton, T("向右旋转", "Rotate clockwise") + " · R");
-        Tip(CanvasToggleButton, T("切换黑白背景", "Switch black/white background") + " · B");
+        ApplyCanvasBackground();
         Tip(FullscreenButton, T("全屏 / 退出全屏", "Enter / leave fullscreen") + " · F11");
         Tip(ZoomInButton, T("放大", "Zoom in") + " · +"); Tip(ZoomOutButton, T("缩小", "Zoom out") + " · −");
         Tip(StudioButton, T("自定义界面风格", "Customize appearance"));
@@ -154,11 +154,19 @@ public partial class MainWindow : Window
         recent.IsEnabled = recent.Items.Count > 0; MoreMenu.Items.Add(recent);
         MoreMenu.Items.Add(new Separator());
         var background = new MenuItem { Header = T("背景颜色", "Background color") };
-        foreach (var value in new[] { "black", "white", "theme", "checker" })
+        var quickBackground = new ContextMenu
         {
-            var label = value switch { "black" => T("黑色", "Black"), "white" => T("白色", "White"), "checker" => T("棋盘格", "Checkerboard"), _ => T("跟随主题", "Theme background") };
-            background.Items.Add(Item(label, () => SetCanvasBackground(value), _settings.Background == value || value == "white" && _settings.Background == "light" || value == "black" && _settings.Background == "dark"));
+            Background = (Brush)Application.Current.Resources["BarBrush"],
+            Foreground = (Brush)Application.Current.Resources["TextBrush"]
+        };
+        foreach (var value in CanvasBackgrounds.Append("theme"))
+        {
+            var label = CanvasBackgroundName(value);
+            bool selected = _settings.Background == value || value == "white" && _settings.Background == "light" || value == "black" && _settings.Background == "dark";
+            background.Items.Add(Item(label, () => SetCanvasBackground(value), selected));
+            quickBackground.Items.Add(Item(label, () => SetCanvasBackground(value), selected));
         }
+        CanvasToggleButton.ContextMenu = quickBackground;
         MoreMenu.Items.Add(background);
         var theme = new MenuItem { Header = T("界面风格", "Appearance") };
         foreach (var preset in ViewerTheme.BuiltIn)
@@ -250,7 +258,20 @@ public partial class MainWindow : Window
         return content.ToString();
     }
     private void SetLanguage(string language) { _settings.Language = language; ApplyLanguage(); SaveSettings(); }
-    private void CanvasToggleClick(object sender, RoutedEventArgs e) => ToggleCanvasBackground();
+    private static readonly string[] CanvasBackgrounds = ["black", "white", "gray", "checker"];
+    private string CanvasBackgroundName(string value) => value switch
+    {
+        "black" or "dark" => T("黑色", "Black"),
+        "white" or "light" => T("白色", "White"),
+        "gray" => T("灰色", "Gray"),
+        "checker" => T("棋盘格", "Checkerboard"),
+        _ => T("跟随主题", "Theme background")
+    };
+    private void CanvasToggleClick(object sender, RoutedEventArgs e)
+    {
+        var current = _settings.Background switch { "dark" => "black", "light" => "white", _ => _settings.Background };
+        SetCanvasBackground(CanvasBackgrounds[(Array.IndexOf(CanvasBackgrounds, current) + 1) % CanvasBackgrounds.Length]);
+    }
     private void ToggleCanvasBackground()
     {
         var light = _settings.Background is "white" or "light"
@@ -264,10 +285,15 @@ public partial class MainWindow : Window
     }
     private void ApplyCanvasBackground()
     {
-        Surface.CanvasMode = _settings.Background switch { "black" or "dark" => "black", "white" or "light" => "white", _ => "theme" };
+        Surface.CanvasMode = _settings.Background switch { "black" or "dark" => "black", "white" or "light" => "white", "gray" => "gray", "checker" => "checker", _ => "theme" };
         Surface.AlphaBackground = _settings.Background == "checker" ? "checker" : "dark";
-        var foreground = Surface.CanvasMode == "white" ? Brushes.Black : Surface.CanvasMode == "black" ? Brushes.White : (Brush)Application.Current.Resources["TextBrush"];
-        var muted = Surface.CanvasMode == "white" ? ViewerTheme.Brush("#555B61") : Surface.CanvasMode == "black" ? ViewerTheme.Brush("#C5CBD0") : (Brush)Application.Current.Resources["MutedBrush"];
+        CanvasButtonLabel.Text = T("背景", "Background");
+        CanvasSwatch.Background = Surface.CanvasBackgroundBrush;
+        var name = T("背景：", "Background: ") + CanvasBackgroundName(_settings.Background);
+        Tip(CanvasToggleButton, name + "\n" + T("单击切换黑、白、灰和棋盘格；右键直接选择。B：切换黑白。", "Click to cycle black, white, gray and checkerboard. Right-click to choose. B: black/white."));
+        System.Windows.Automation.AutomationProperties.SetName(CanvasToggleButton, name);
+        var foreground = Surface.CanvasMode is "white" or "gray" or "checker" ? Brushes.Black : Surface.CanvasMode == "black" ? Brushes.White : (Brush)Application.Current.Resources["TextBrush"];
+        var muted = Surface.CanvasMode is "gray" or "checker" ? ViewerTheme.Brush("#111111") : Surface.CanvasMode == "white" ? ViewerTheme.Brush("#555B61") : Surface.CanvasMode == "black" ? ViewerTheme.Brush("#C5CBD0") : (Brush)Application.Current.Resources["MutedBrush"];
         EmptyTitle.Foreground = foreground; EmptySubtitle.Foreground = muted;
         EmptyIcon.Foreground = muted; EmptyFormats.Foreground = muted;
         Surface.InvalidateVisual();

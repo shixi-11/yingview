@@ -28,11 +28,24 @@ internal static class BackgroundAssertions
         setBackground.Invoke(window, ["white"]);
         Check(settings.Background == "white" && surface.CanvasMode == "white", "White mode must update the full canvas and preference.");
 
+        setBackground.Invoke(window, ["black"]);
+        var button = (System.Windows.Controls.Button)typeof(MainWindow).GetField("CanvasToggleButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+        foreach (var expected in new[] { "white", "gray", "checker", "black" })
+        {
+            button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+            Check(settings.Background == expected && surface.CanvasMode == expected, "One click must cycle through all four backgrounds.");
+            var checkedItems = button.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Where(i => i.IsChecked).ToArray();
+            Check(checkedItems.Length == 1, "The direct background menu must indicate exactly one selected color.");
+        }
+        var grayChoice = button.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Single(i => Equals(i.Header, "Gray"));
+        grayChoice.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
+        Check(settings.Background == "gray", "A direct background choice must apply immediately.");
+
         var path = Path.Combine(outputDirectory, "canvas-background-settings.json");
-        var isolatedSettings = new Preferences(path) { Background = "white" };
+        var isolatedSettings = new Preferences(path) { Background = "gray" };
         Check(isolatedSettings.Save(), "A selected canvas color must save to the isolated test preferences file.");
         using var saved = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
-        Check(saved.RootElement.GetProperty("Background").GetString() == "white", "Selected canvas color must persist.");
+        Check(saved.RootElement.GetProperty("Background").GetString() == "gray", "Selected canvas color must persist.");
 
         var transparent = BitmapSource.Create(2, 2, 96, 96, PixelFormats.Bgra32, null, new byte[16], 8);
         transparent.Freeze();
@@ -51,6 +64,19 @@ internal static class BackgroundAssertions
         var whiteFrame = Render(renderSurface, 120, 80);
         Save(whiteFrame, Path.Combine(outputDirectory, "canvas-white.png"));
         Check(IsWhite(Read(whiteFrame, 0, 0)) && IsWhite(Read(whiteFrame, 119, 79)) && IsWhite(Read(whiteFrame, 60, 40)), "White must fill the area outside the image and transparent pixels.");
+        renderSurface.CanvasMode = "gray"; renderSurface.InvalidateVisual();
+        var grayFrame = Render(renderSurface, 120, 80);
+        Save(grayFrame, Path.Combine(outputDirectory, "canvas-gray.png"));
+        Check(Read(grayFrame, 0, 0).R == 128 && Read(grayFrame, 60, 40).R == 128 && Read(grayFrame, 119, 79).R == 128,
+            "Gray must cover both the outer canvas and transparent PNG pixels.");
+        renderSurface.CanvasMode = "checker"; renderSurface.InvalidateVisual();
+        var checkerFrame = Render(renderSurface, 120, 80);
+        Save(checkerFrame, Path.Combine(outputDirectory, "canvas-checker.png"));
+        Check(Read(checkerFrame, 2, 2) != Read(checkerFrame, 14, 2), "Checkerboard must also fill the canvas outside the image.");
+        renderSurface.SetDocument(null, ViewportFitMode.Actual);
+        var emptyChecker = Render(renderSurface, 120, 80);
+        Check(Read(checkerFrame, 60, 40) == Read(emptyChecker, 60, 40), "Checkerboard must remain aligned through transparent pixels without a second image-sized background.");
+
         var afterPixels = new byte[16]; transparent.CopyPixels(afterPixels, 8, 0);
         Check(originalPixels.SequenceEqual(afterPixels), "Changing the canvas must not modify image RGB or alpha data.");
         renderSurface.SetDocument(null, ViewportFitMode.Contain);
