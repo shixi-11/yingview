@@ -20,6 +20,11 @@ The app does not transmit images, preferences, comparison marks, CSV exports, or
 
 The client has no in-app purchases or payment processing.
 
+
+Large animations may use temporary decoded frame files on the device; these are removed when their file handles close. Choosing Support opens shixilin.com in the browser; any optional payment is handled by that website, not by the image viewer. Images are not attached to those links.
+
 ## Contact
 
 For support and privacy questions, use [GitHub Issues](https://github.com/shixi-11/yingview/issues). Please keep private images, file paths, and payment information out of public reports.
+
+Collaboration and private enquiries: [info@elevencapital.ltd](mailto:info@elevencapital.ltd).

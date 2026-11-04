@@ -6,11 +6,11 @@
 - [ ] 在Microsoft Partner Center中预留最终产品名称和程序包身份。打包参数中的`IdentityName`必须与预留身份完全一致。
 - [ ] 从Partner Center复制准确的`Publisher`值；它与面向用户显示的发布者名称不是同一个字段。
 - [ ] 确认最终产品名称和发布者显示名称。最终品牌确定后，将其传入打包脚本。
-- [ ] 发布并验证可访问的HTTPS支持页、应用隐私说明页和客户端EULA页面，再将真实网址填入Partner Center。隐私页须说明映窗及本机数据处理；EULA须对应免费个人/商业使用的客户端许可，不能用PolyForm源码许可证代替。
+- [ ] 发布并验证可访问的HTTPS支持页、应用隐私说明页和客户端EULA页面，再将真实网址填入Partner Center。隐私页须说明映窗及本机数据处理；许可信息须与本版随附的AGPLv3一致，并明确提供对应源码入口；提交前核对商店分发条款的兼容性。
 - [ ] 在Partner Center设置免费定价与销售范围、应用类别、功能声明并完成年龄分级问卷。
 - [ ] 准备en-US和zh-CN本地化商店资料与截图。至少需要一张截图；桌面截图须为PNG且至少1366×768，并满足商店标志资源要求。
 - [ ] 构建Release独立版客户端，确认`ClientDirectory`包含`YingView.exe`、官方源码`LICENSE`、`NOTICE`、`THIRD-PARTY-NOTICES.md`、`CLIENT-LICENSE.txt`、`CLIENT-LICENSE.zh-CN.txt`、`LICENSING.md`和完整的发布运行文件。
-- [ ] 选择与应用版本一致、以`.0`结尾的四段版本号（当前应用版本为`0.3.15`，程序包版本应为`0.3.15.0`）。
+- [ ] 选择与应用版本一致、以`.0`结尾的四段版本号（当前应用版本为`0.3.21`，程序包版本应为`0.3.21.0`）。
 
 ## 创建并检查程序包
 
@@ -23,7 +23,7 @@
   -IdentityName '<已预留的程序包身份名称>' `
   -Publisher '<Partner Center中的准确Publisher字符串>' `
   -PublisherDisplayName '<公开显示的发布者名称>' `
-  -Version '0.3.15.0' `
+  -Version '0.3.21.0' `
   -ClientDirectory '.\dist\YingView-auto' `
   -OutputDirectory '.\output\store'
 ```

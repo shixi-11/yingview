@@ -85,8 +85,8 @@ try {
     New-Item -ItemType Directory -Path $stagePath -Force | Out-Null
     Get-ChildItem -LiteralPath $clientPath -Force | Copy-Item -Destination $stagePath -Recurse -Force
 
-    # These client-use terms are separate from the repository's source license.
-    # All three files are required so the packaged client includes its usage grant.
+    # Include the AGPL license summaries and licensing overview with the client.
+    # Require both language notices and the licensing overview in the package.
     foreach ($licenseFile in @('CLIENT-LICENSE.txt', 'CLIENT-LICENSE.zh-CN.txt', 'LICENSING.md')) {
         $clientLicensePath = Join-Path $clientPath $licenseFile
         if (-not (Test-Path -LiteralPath $clientLicensePath -PathType Leaf)) {

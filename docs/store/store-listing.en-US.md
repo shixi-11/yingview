@@ -6,27 +6,33 @@ YingView
 
 ## Short description
 
-A focused Windows image viewer for smooth zoom, folder browsing, and side-by-side comparison.
+See whole images, compare details, and preview custom backgrounds in a focused local viewer.
 
 ## Description
 
-YingView gives your images room to breathe. Open a picture or folder in a clean, maximized view, enlarge small images proportionally, and zoom around the pointer as you look closer. Browse a folder in natural filename order, with an optional thumbnail strip when you want it.
+Open a picture or folder and give the image room. YingView starts maximized, enlarges small images proportionally, and keeps the whole picture visible. Browse files in natural filename order, zoom around your pointer, and reveal a compact thumbnail strip whenever you need it.
 
-Compare two images side by side with synchronized zoom and panning. Choose a dark, light, or checkerboard canvas, mark images to keep or review, and export those session marks to a CSV file on your device.
+Compare two images side by side with synchronized zoom and panning. Mark images Keep or Pending, then export your session marks to a local CSV.
 
-Choose one of four appearance presets, adjust colors and interface text size, or make the toolbar more compact. Import and export color themes as JSON.
+Inspect artwork and transparent edges against black, white, gray, checkerboard or a color of your choice. The compact palette sits beside the picture. Drag to see the background change immediately; confirm to save or cancel to restore the previous background.
 
-YingView is free to use for personal and commercial purposes under its client license. The source code has separate terms. Images are opened and compared locally. YingView does not upload image files, include advertising, or send usage analytics. Use Delete or Del to send the current image to the Windows Recycle Bin on a local fixed drive.
+Choose an appearance preset, adjust text size and colors, use compact controls, or import and export a JSON theme. Rotate and mirror the view without overwriting the image. Delete or Del moves supported files on local fixed drives to the Windows Recycle Bin.
+
+YingView is free and open source under AGPLv3. Images are processed locally, with no ads or usage analytics. English and Simplified Chinese clients are available. Optional donations support maintenance and do not unlock features.
 
 ## Key features
 
-- Maximized, proportional image viewing, including enlargement of small images
-- Pointer-centered zoom, panning, and natural-order folder browsing
-- Optional thumbnail strip, hidden by default
-- Side-by-side comparison with synchronized zoom and panning
-- Dark, light, and checkerboard comparison backgrounds, with session marks and local CSV export
-- Four appearance presets, color and text-size adjustments, and free JSON theme import and export
-- Animated image viewing, subject to per-image limits
-- PNG, JPEG, GIF, WebP, AVIF, BMP, TIFF, and ICO formats
-- English and Simplified Chinese interface
-- Free client use for personal and commercial purposes
+- Proportional whole-image fit and actual-pixel viewing
+- Pointer-centered zoom, panning and natural-order folder browsing
+- Optional compact thumbnails and fullscreen viewing
+- Synchronized side-by-side comparison, session marks and CSV export
+- Embedded color palette with live background preview and cancel/restore
+- Appearance presets, text sizing, compact controls and JSON themes
+- Supported animated-image playback and pause, subject to resource limits
+- PNG, JPEG, GIF, WebP, AVIF, BMP, TIFF and ICO
+- Local fixed-drive Recycle Bin deletion
+- Free personal and commercial use under AGPLv3
+
+## Support and collaboration
+
+[Issues](https://github.com/shixi-11/yingview/issues) · [Optional support](https://shixilin.com/en/support) · [info@elevencapital.ltd](mailto:info@elevencapital.ltd)

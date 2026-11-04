@@ -1,7 +1,7 @@
-# Store pricing and dormant purchase code
+# Free Microsoft Store release
 
-The Microsoft Store launch is free. The client is licensed for personal and commercial use under the separate client license included with the download/package. This does not change the repository's PolyForm Noncommercial source license: commercial development, redistribution, or resale of the source requires separate written permission from the rights holder. See the root `LICENSING.md` overview and the client license files.
+YingView is free to use. Original code and clients from 0.3.21 use GNU AGPLv3 only (AGPL-3.0-only), including its applicable Corresponding Source obligations. There is no separate noncommercial source restriction. See LICENSE, NOTICE and LICENSING.md at the repository root.
 
-There is no Pro tier, in-app purchase, advertising, or paid feature in the launch offer. Existing Commerce and Store purchase code remains dormant and is not configured for sale. Do not create a Store add-on, embed a product ID, enable checkout, or describe future paid features as currently available without a new product decision and implementation.
+There are no paid feature gates or in-app purchases in this release. Optional support opens the creator's website in the browser; it is voluntary and does not unlock features. Any website payment is handled outside the client.
 
-The current code path contains Store license and purchase integration scaffolding, but no live product, real catalog, checkout, or billing validation. Its presence in source is not evidence that the app sells anything or that purchases work.
+The repository contains Store packaging and submission preparation. A completed account, package identity, policy review and certification are still required; preparation does not mean the app has been submitted or accepted.

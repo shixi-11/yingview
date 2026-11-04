@@ -215,9 +215,9 @@ public partial class MainWindow : Window
         if (!App.IsStoreManaged)
             MoreMenu.Items.Add(Item(T("自动检查更新", "Check for updates automatically"), () =>
             { _settings.AutoCheckUpdates = !_settings.AutoCheckUpdates; SaveSettings(); BuildMenu(); }, _settings.AutoCheckUpdates));
-        MoreMenu.Items.Add(Item(T("关于映窗", "About YingView"), () => MessageBox.Show(this,
-            T($"映窗 {DisplayVersion} 预览版\n由光之十一开发\n\n本地查看，无广告，无图片上传。\n源码：github.com/shixi-11/yingview", $"YingView {DisplayVersion} Preview\nCreated by Shixi Lin\n\nLocal viewing. No ads. No image uploads.\nSource: github.com/shixi-11/yingview"), T("关于映窗", "About YingView"))));
+        MoreMenu.Items.Add(Item(T("关于映窗", "About YingView"), ShowAbout));
     }
+    private void ShowAbout() => new AboutWindow(IsChinese, DisplayVersion, ShowLicenses) { Owner = this }.ShowDialog();
     private void OpenDefaultSettings()
     {
         new DefaultAppsWindow(_settings.Language, startImmediately: true) { Owner = this }.ShowDialog();

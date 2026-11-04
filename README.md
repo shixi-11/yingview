@@ -1,61 +1,67 @@
 # YingView
 
-YingView is a local-first image viewer for Windows 10 and 11. Open a picture or drop in a folder to browse it in a large, uncluttered window. It is built with .NET 10 and WPF, with image decoding provided by Magick.NET 15. Download the English build for the YingView name and English interface, or the Simplified Chinese build for the 映窗 name and Chinese interface.
+See the whole picture, then look closer. YingView is a free, open-source image viewer created by Shixi Lin. Open a picture or folder in a clean, maximized window, browse in natural filename order, and compare two images side by side. Choose a black, white, gray, checkerboard or custom background to inspect artwork and transparent edges. Your images stay on your device.
 
-**Version:** 0.3.15 Preview · **Architecture:** x64
+[简体中文](README.zh-CN.md) · [Download](https://github.com/shixi-11/yingview/releases/latest) · [Report an issue](https://github.com/shixi-11/yingview/issues) · [Support development](https://shixilin.com/en/support)
 
-The official client is free for personal, freelance, studio and company use.
-The current release has no paid feature gates or in-app purchases.
+**Windows source: 0.3.21 Preview · Windows 10/11 x64 · AGPL-3.0-only**
 
-[简体中文](README.zh-CN.md) · [Download from GitHub Releases](https://github.com/shixi-11/yingview/releases) · [Theme guide](docs/themes.md)
+## Windows features
 
-## What it does
+| What you want to do | What YingView offers |
+| --- | --- |
+| See the entire image | Opens maximized and enlarges small pictures proportionally. Fit keeps the whole picture visible; 100% shows physical image pixels. |
+| Browse a folder | Open or drop images and folders, move in natural filename order, and expand the compact thumbnail strip when needed. |
+| Inspect details | Zoom around the pointer, pan, rotate or mirror the view, show image information, and switch to fullscreen. |
+| Check transparency | Switch the entire canvas between black, white, gray and checkerboard, or open the compact color palette beside the picture. Drag or enter a HEX color to preview it live; confirm to save, cancel to restore. |
+| Compare alternatives | View two images side by side with synchronized zoom and panning, mark images Keep or Pending, and export session marks to a local CSV. |
+| Keep everyday actions close | Copy an image or its path, paste an image, reopen recent files, and reveal a file in its folder. Delete/Del moves supported local files to the Windows Recycle Bin. |
+| Make the interface yours | Four appearance presets, custom colors, text size, compact controls, and JSON theme import/export. |
+| Watch moving images | Play or pause supported animated images, or browse a folder as a slideshow. |
+| Keep the client current | Standalone update checks, an installation helper and a default-image-viewer setup flow. |
 
-- Opens images in a maximized window and fits the whole image to the available view. Small images are enlarged proportionally.
-- Zooms around the mouse pointer and lets you pan a zoomed image. Use the arrow keys to browse the current folder in natural filename order.
-- Keeps the controls compact and the thumbnail strip hidden by default; press **T** to show or hide the strip.
-- Uses a solid black viewing background by default. Use the **◐** toolbar button or **B** to switch the whole viewing area between black and white; your choice is saved.
-- Compares two images side by side with synchronized zoom and panning. Choose a dark, light, or checkerboard canvas, mark images to keep or review later, and export the session marks to a local CSV file.
-- Sends the selected image to the Windows Recycle Bin with **Delete** or **Del**. This works for files on local fixed drives; network and removable drives are unsupported.
-- Supports animated images within limits of 200 frames, 256 MiB of decoded frames, and 100 million pixels per image. TIFF files open at their first page.
-- Includes four built-in appearance presets, live color and text-size adjustments, a compact-toolbar option, and free JSON theme import and export. The English build uses English interface text; the Simplified Chinese build uses Chinese interface text. Other languages use English.
+The palette is embedded in the main window, so it does not cover the image with a separate dialog. Fit mode adjusts the picture to the remaining space. The Background button cycles four presets; **B** switches black/white. **T** toggles thumbnails, **F** fits the image, **1** selects actual pixels, **V** opens comparison, and **F11** toggles fullscreen.
 
-The appearance editor now shows visual preset cards, color swatches, and a live text preview. Comparison controls follow the interface text-size setting. Empty folders, damaged files, and externally moved images clear the previous selection and offer a way to recover; **F5** refreshes the selected image or reopens its folder when it has moved.
+### Formats and practical limits
 
-In the standalone client, choose **More → Set as default image viewer**, then **Confirm and set all** to apply all 10 supported image formats together. The app checks the effective Windows associations and reports any formats that could not be changed. Packaged clients use the Windows Settings flow.
+PNG, JPEG, GIF, WebP, AVIF, BMP, TIFF and ICO are supported. TIFF opens at its first page. HEIC/HEIF extensions are recognized, but their compatibility has not been verified for this release.
+
+Animations are limited to 200 frames and images to 100 million pixels. Larger decoded animations can use temporary disk-backed frames rather than keeping all frames in RAM; 256 MiB is the memory threshold, not a blanket file-size limit. Temporary decoded frames are capped at 2 GiB, and decoder resource limits can reject demanding files earlier. There is no promise that every encoding or animation will open.
+
+Recycle Bin deletion is supported for local fixed drives. Network and removable drives are not supported by that command.
+
+## Language and installation
+
+Download **YingView-en-US.exe** for the English client or **YingView-zh-CN.exe** for the Simplified Chinese client. The chosen build determines the interface, display name, icon and installed shortcut language. Other interface languages currently fall back to English.
+
+Run the downloaded executable to start viewing. For an installed shortcut and file-association registration, use the installation helper supplied by a local build. The default-viewer setup reports which supported formats Windows actually associates with YingView.
+
+Updates are checked at most once per day after the first window appears, if enabled. Download and installation require your choice. Store-managed clients use the Store update path. See the [update guide](docs/updates.md).
 
 ## macOS preview
 
-The native client in `src/YingView.macOS` uses SwiftUI, AppKit, and the system ImageIO decoder on macOS 13 or later. It includes contain fit, physical-pixel 100%, navigation, zoom, rotation, Trash, a collapsible filmstrip, basic side-by-side viewing, and appearance settings. The build script produces separate Chinese and English apps with Apple silicon and Intel architectures. Developer ID signing and notarization remain pending; it has not been submitted to the Mac App Store.
+The repository also includes a native macOS 13+ client built with SwiftUI, AppKit and ImageIO. It supports image/folder opening, fit and physical-pixel views, browsing, zoom, rotation, Trash, thumbnails, appearance settings and basic two-image comparison. It does not yet include every Windows feature listed above.
 
-The decoder is configured for PNG, JPEG, GIF, WebP, AVIF, BMP, TIFF, ICO, HEIC, and HEIF extensions. Support depends on each file's encoding and contents. HEIC and HEIF have not been verified in this release.
+The build script produces separate Chinese and English apps for Apple silicon and Intel. Developer ID signing, notarization and Mac App Store submission are pending. Check the actual release assets before downloading.
 
-## Image handling and privacy
+## Privacy
 
-YingView opens and compares images locally. Viewing, rotating, and mirroring do not change image bytes. The app does not upload image content, include advertising, or send usage analytics. The only image-file action is the explicit Recycle Bin command described above. See the [privacy information](docs/store/privacy.en-US.md) for local data details.
+Viewing, rotating and mirroring do not overwrite original image files. YingView does not upload image content, show ads or send usage analytics. Preferences and recent paths stay local; large animations may create temporary decoded frames, and comparison marks are exported only when you choose to save them. Optional support links open your browser. See the [privacy information](docs/store/privacy.en-US.md).
 
-## Download and build
+## Build from source
 
-This repository contains the 0.3.15 Preview source for Windows x64. Check the version on [GitHub Releases](https://github.com/shixi-11/yingview/releases) for the builds currently available to download; a source update does not automatically publish new download assets. The Microsoft Store submission has not been made.
-
-Choose the download whose language matches your preference. The selected build also determines the app name, icon, and installed shortcut language.
-
-To build from source, install the .NET 10 SDK and run:
+Windows uses .NET 10, WPF and Magick.NET 15. With the .NET 10 SDK installed, run:
 
 ```powershell
 .\scripts\build.ps1
 ```
 
-The generated `Install.ps1` replaces the previous installation and removes older copies. With `-KeepRunningVersion`, it installs the update alongside a running version and updates the shortcuts; reopen the app from its updated shortcut to use the new version. The next installation replaces that copy.
+The script builds the English and Simplified Chinese standalone clients. macOS build instructions are in [src/YingView.macOS](src/YingView.macOS). Microsoft Store packaging materials are in [docs/store](docs/store); the app has not yet been submitted.
 
-Windows standalone clients provide **Check for updates** in the menu. Automatic checks run after the first window appears, at most once per day; downloading and installing require your choice. See [updates](docs/updates.md).
+## License, support and collaboration
 
-## License
+From **0.3.21**, original YingView code and official clients use **GNU AGPLv3 only (`AGPL-3.0-only`)**. Personal and commercial use, modification and redistribution are permitted under its terms, including the applicable source-availability obligations. See [LICENSE](LICENSE) and the [licensing overview](LICENSING.md). Earlier releases and third-party components retain their respective terms.
 
-The unmodified official client may be used free of charge for personal and commercial work, including internal company deployment, under the [official client grant](CLIENT-LICENSE.txt).
+YingView is free to use. If it helps your work, [optional donations](https://shixilin.com/en/support) support continued maintenance. All features remain available without donating.
 
-The source code remains under [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial source development, commercial use of self-built or modified versions, resale, rebranding and commercial bundling require separate written permission. This is source-available software; public source does not grant unrestricted commercial rights. See the [licensing overview](LICENSING.md). Third-party dependencies retain their own licenses.
-
-## Creator
-
-Shixi Lin
+Created by **Shixi Lin**. Collaboration: [info@elevencapital.ltd](mailto:info@elevencapital.ltd).

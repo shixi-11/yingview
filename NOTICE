@@ -1,11 +1,11 @@
 YingView
 Copyright (c) 2026 Shixi Lin
 
-Source code is licensed under PolyForm Noncommercial License 1.0.0 (LICENSE).
-Unmodified official clients may be used free of charge for personal and
-commercial work under the additional grant in CLIENT-LICENSE.txt.
-Commercial source development, commercial use of self-built/modified versions,
-and resale or commercial redistribution require separate written permission.
-See LICENSING.md. The official PolyForm license text has not been modified.
+Starting with version 0.3.21, original YingView code and official clients are
+licensed under the GNU Affero General Public License, version 3 only
+(SPDX-License-Identifier: AGPL-3.0-only). See LICENSE for the complete terms.
+Earlier releases retain the terms distributed with those releases.
+Third-party components retain their respective licenses and notices.
+See THIRD-PARTY-NOTICES.md and the included ThirdParty directory.
 
-Third-party components retain their respective licenses. See THIRD-PARTY-NOTICES.md.
+Collaboration: info@elevencapital.ltd

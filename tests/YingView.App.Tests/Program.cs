@@ -723,8 +723,25 @@ internal static class Program
                 Check(labels.Contains(code == "zh" ? "外观设置…" : "Appearance…") && !labels.Any(s => s.Contains("Pro") || s.Contains("专业版")),
                     "The current release must expose appearance settings without a paid-plan entry.");
                 var terms = window.GetLicenseText();
-                Check(terms.Contains(code == "zh" ? "免费个人及商业使用" : "Free personal and commercial use") && terms.Contains("PolyForm Noncommercial License 1.0.0")
-                    && terms.Contains(code == "zh" ? "书面" : "separate written permission"), "Both client languages must embed the commercial-use grant and separate source terms.");
+                Check(terms.Contains(code == "zh" ? "免费个人及商业使用" : "Free personal and commercial use")
+                    && terms.Contains("AGPL-3.0-only") && terms.Contains("GNU AFFERO GENERAL PUBLIC LICENSE")
+                    && !terms.Contains("PolyForm Noncommercial"), "Both client languages must embed AGPLv3 and remove the superseded commercial restrictions.");
+                var version = typeof(MainWindow).Assembly.GetName().Version!.ToString(3);
+                var about = new AboutWindow(code == "zh", version, () => { });
+                static Button FindLink(DependencyObject parent, string name)
+                {
+                    foreach (var child in LogicalTreeHelper.GetChildren(parent).OfType<DependencyObject>())
+                    {
+                        if (child is Button button && button.Name == name) return button;
+                        try { return FindLink(child, name); } catch (InvalidOperationException) { }
+                    }
+                    throw new InvalidOperationException("Missing About link: " + name);
+                }
+                Check((string)FindLink(about, "SupportLink").Tag == AboutWindow.SupportUrl(code == "zh"), "Support must open the matching language page.");
+                Check((string)FindLink(about, "ContactLink").Tag == "mailto:info@elevencapital.ltd", "Collaboration must use the approved address.");
+                Check((string)FindLink(about, "SourceLink").Tag == "https://github.com/shixi-11/yingview/tree/v" + version, "The client must link to the corresponding release source.");
+                SaveWindowContentReviewPng(about, "about-" + code + ".png", 470, 600);
+                about.Close();
             }
         }
         finally { settings.Language = language; InvokeVoid(window, "BuildMenu"); }

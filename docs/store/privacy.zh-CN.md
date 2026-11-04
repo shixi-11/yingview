@@ -20,6 +20,11 @@ Windows 独立版可在首个窗口显示后查询项目的 GitHub Releases，�
 
 客户端不含应用内购买或支付处理。
 
+
+较大的动图可能在本机生成临时解码帧文件，文件句柄关闭后删除。点击支持入口会通过浏览器打开 shixilin.com，自愿打赏由该网站处理，不由看图客户端处理；这些链接不会附带图片内容。
+
 ## 联系方式
 
 支持与隐私问题可通过[GitHub Issues](https://github.com/shixi-11/yingview/issues)联系。请勿在公开问题中附上私密图片、文件路径或支付信息。
+
+合作及非公开联系：[info@elevencapital.ltd](mailto:info@elevencapital.ltd)。
