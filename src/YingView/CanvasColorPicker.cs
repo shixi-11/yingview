@@ -69,7 +69,7 @@ internal sealed class CanvasColorPicker : UserControl
         AutomationProperties.SetName(close, T("关闭调色盘并取消", "Close palette and cancel"));
         close.Click += (_, _) => Cancelled?.Invoke(); DockPanel.SetDock(close, Dock.Right); heading.Children.Add(close);
         var caption = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        caption.Children.Add(new TextBlock { Text = "\uE790", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 16, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center });
+        caption.Children.Add(new PaletteIcon { Width = 18, Height = 18, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center });
         caption.Children.Add(new TextBlock { Text = T("调色盘", "Color palette"), FontSize = 14, FontWeight = FontWeights.SemiBold });
         heading.Children.Add(caption); panel.Children.Add(heading);
         AutomationProperties.SetName(_field, T("颜色区域：方向键调整饱和度和明度", "Color area: arrow keys adjust saturation and brightness"));

@@ -172,7 +172,7 @@ public partial class MainWindow : Window
         {
             menu.Items.Add(new Separator());
             var paletteItem = Item(T("调色盘…", "Color palette…"), ChooseCanvasColor, _settings.Background == "custom");
-            paletteItem.Icon = new TextBlock { Text = "\uE790", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets") };
+            paletteItem.Icon = new PaletteIcon { Width = 16, Height = 16, Foreground = ViewerTheme.Brush("#20242A") };
             menu.Items.Add(paletteItem);
         }
         CanvasToggleButton.ContextMenu = quickBackground;

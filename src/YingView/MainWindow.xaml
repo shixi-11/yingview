@@ -31,7 +31,7 @@
           <Menu VerticalAlignment="Center"><MenuItem x:Name="MoreMenu" Header="•••" Foreground="{DynamicResource TextBrush}" FontSize="15"/></Menu>
         </StackPanel>
         <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
-          <Button x:Name="StudioButton" Click="StyleStudioClick" Content="&#xE790;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Padding="9,7" ToolTip="Style studio"/>
+          <Button x:Name="StudioButton" Click="StyleStudioClick" Padding="9,7" ToolTip="Style studio"><local:PaletteIcon/></Button>
           <Button x:Name="DeleteButton" Click="DeleteClick" Content="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Padding="9,7" ToolTip="Delete image"/>
         </StackPanel>
       </Grid>
