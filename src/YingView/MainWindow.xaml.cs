@@ -156,8 +156,8 @@ public partial class MainWindow : Window
         var background = new MenuItem { Header = T("背景颜色", "Background color") };
         var quickBackground = new ContextMenu
         {
-            Background = (Brush)Application.Current.Resources["BarBrush"],
-            Foreground = (Brush)Application.Current.Resources["TextBrush"]
+            Background = Brushes.White,
+            Foreground = ViewerTheme.Brush("#20242A")
         };
         foreach (var value in CanvasBackgrounds.Append("theme"))
         {

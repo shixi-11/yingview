@@ -38,6 +38,17 @@ internal static class BackgroundAssertions
             Check(checkedItems.Length == 1, "The direct background menu must indicate exactly one selected color.");
         }
         var grayChoice = button.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Single(i => Equals(i.Header, "Gray"));
+        grayChoice.ApplyTemplate();
+        var menuColor = ((SolidColorBrush)button.ContextMenu.Background).Color;
+        var textColor = ((SolidColorBrush)grayChoice.Foreground).Color;
+        static double Luminance(Color color)
+        {
+            static double Channel(byte v) { var n = v / 255d; return n <= .04045 ? n / 12.92 : Math.Pow((n + .055) / 1.055, 2.4); }
+            return .2126 * Channel(color.R) + .7152 * Channel(color.G) + .0722 * Channel(color.B);
+        }
+        var menuL = Luminance(menuColor); var textL = Luminance(textColor);
+        Check((Math.Max(menuL, textL) + .05) / (Math.Min(menuL, textL) + .05) >= 4.5,
+            "Background menu text must remain readable against its popup background.");
         grayChoice.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
         Check(settings.Background == "gray", "A direct background choice must apply immediately.");
 
