@@ -299,20 +299,35 @@ public partial class MainWindow : Window
     private void ChooseCanvasColor()
     {
         var picker = new CanvasColorWindow(IsChinese, _settings.CustomBackgroundColor) { Owner = this };
-        if (picker.ShowDialog() != true) { BuildMenu(); return; }
-        _settings.CustomBackgroundColor = picker.SelectedColor;
-        SetCanvasBackground("custom");
+        void Preview(string color) => RenderCanvasBackground("custom", color);
+        picker.PreviewColorChanged += Preview;
+        try
+        {
+            if (picker.ShowDialog() == true)
+            {
+                _settings.CustomBackgroundColor = picker.SelectedColor;
+                SetCanvasBackground("custom");
+            }
+        }
+        finally
+        {
+            picker.PreviewColorChanged -= Preview;
+            ApplyCanvasBackground();
+            BuildMenu();
+            Surface.Focus();
+        }
     }
-    private void ApplyCanvasBackground()
+    private void ApplyCanvasBackground() => RenderCanvasBackground(_settings.Background, _settings.CustomBackgroundColor);
+    private void RenderCanvasBackground(string background, string customColor)
     {
-        Surface.CanvasMode = _settings.Background switch { "black" or "dark" => "black", "white" or "light" => "white", "gray" => "gray", "checker" => "checker", "custom" => "custom", _ => "theme" };
-        Surface.CustomCanvasBrush = ViewerTheme.Brush(_settings.CustomBackgroundColor);
-        Surface.AlphaBackground = _settings.Background == "checker" ? "checker" : "dark";
+        Surface.CanvasMode = background switch { "black" or "dark" => "black", "white" or "light" => "white", "gray" => "gray", "checker" => "checker", "custom" => "custom", _ => "theme" };
+        Surface.CustomCanvasBrush = ViewerTheme.Brush(customColor);
+        Surface.AlphaBackground = background == "checker" ? "checker" : "dark";
         CanvasButtonLabel.Text = T("背景", "Background");
         Tip(CanvasChooseButton, T("选择背景颜色（含自定义颜色）", "Choose background color, including custom colors"));
         System.Windows.Automation.AutomationProperties.SetName(CanvasChooseButton, T("选择背景颜色", "Choose background color"));
         CanvasSwatch.Background = Surface.CanvasBackgroundBrush;
-        var name = T("背景：", "Background: ") + CanvasBackgroundName(_settings.Background);
+        var name = T("背景：", "Background: ") + (background == "custom" ? T("自定义 ", "Custom ") + customColor : CanvasBackgroundName(background));
         Tip(CanvasToggleButton, name + "\n" + T("单击切换黑、白、灰和棋盘格；右键直接选择。B：切换黑白。", "Click to cycle black, white, gray and checkerboard. Right-click to choose. B: black/white."));
         System.Windows.Automation.AutomationProperties.SetName(CanvasToggleButton, name);
         var foreground = Surface.CanvasMode is "white" or "gray" or "checker" ? Brushes.Black : Surface.CanvasMode == "black" ? Brushes.White : (Brush)Application.Current.Resources["TextBrush"];

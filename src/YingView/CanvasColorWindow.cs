@@ -51,6 +51,7 @@ internal sealed class CanvasColorWindow : Window
     private readonly ColorField _field = new() { Name = "ColorArea", Height = 178, Focusable = true, Margin = new Thickness(0, 0, 0, 12) };
     private bool _refreshing;
     public string SelectedColor { get; private set; }
+    public event Action<string>? PreviewColorChanged;
 
     public CanvasColorWindow(bool chinese, string initialColor)
     {
@@ -73,7 +74,7 @@ internal sealed class CanvasColorWindow : Window
         hueStrip.MouseLeftButtonUp += (_, e) => { hueStrip.ReleaseMouseCapture(); e.Handled = true; };
         panel.Children.Add(hueStrip);
         AutomationProperties.SetName(_hue, T("色相", "Hue")); panel.Children.Add(_hue);
-        var colors = new UniformGrid { Columns = 8, Margin = new Thickness(0, 0, 0, 16) };
+        var colors = new UniformGrid { Name = "ColorSwatches", Columns = 8, Margin = new Thickness(0, 0, 0, 16) };
         foreach (var hex in new[] { "#FFFFFF", "#F3E9D2", "#D6E4EF", "#B7D7C8", "#D8C9EC", "#E8BCBB", "#808080", "#000000" })
         {
             var swatch = new Button { Width = 30, Height = 28, Background = ViewerTheme.Brush(hex), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), ToolTip = hex, Style = new Style(typeof(Button)), Padding = new Thickness(0) };
@@ -118,6 +119,7 @@ internal sealed class CanvasColorWindow : Window
         if (updateText) _hex.Text = hex;
         _preview.Background = new SolidColorBrush(color); _apply.IsEnabled = true; _error.Visibility = Visibility.Hidden;
         _refreshing = false; _field.InvalidateVisual();
+        PreviewColorChanged?.Invoke(hex);
     }
 
     private void UpdateFromField()
@@ -125,6 +127,7 @@ internal sealed class CanvasColorWindow : Window
         var color = CanvasColor.FromHsv(_field.Hue, _field.Saturation, _field.Value);
         _refreshing = true; _hex.Text = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
         _preview.Background = new SolidColorBrush(color); _apply.IsEnabled = true; _error.Visibility = Visibility.Hidden; _refreshing = false;
+        PreviewColorChanged?.Invoke(_hex.Text);
     }
 
     private sealed class ColorField : FrameworkElement
