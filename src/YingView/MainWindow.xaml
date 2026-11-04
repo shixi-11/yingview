@@ -37,6 +37,8 @@
       </Grid>
     </Border>
     <Grid Grid.Row="1" x:Name="Stage" Background="{DynamicResource ShellBrush}">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <Grid x:Name="ImageStage">
       <local:ImageSurface x:Name="Surface"/>
       <StackPanel x:Name="EmptyPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="28">
         <TextBlock x:Name="EmptyIcon" Text="&#xE8B9;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="36" HorizontalAlignment="Center" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,18"/>
@@ -50,6 +52,10 @@
       </Border>
       <Border x:Name="Toast" Visibility="Collapsed" Background="{DynamicResource BarBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="6" Padding="14,9" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="20,20,20,18" MaxWidth="700">
         <TextBlock x:Name="ToastText" TextWrapping="Wrap" FontSize="13"/>
+      </Border>
+      </Grid>
+      <Border x:Name="CanvasColorHost" Grid.Column="1" Visibility="Collapsed" Background="{DynamicResource BarBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1,0,0,0">
+        <ScrollViewer x:Name="CanvasColorScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"/>
       </Border>
     </Grid>
     <Border x:Name="Filmstrip" Grid.Row="2" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0" Background="{DynamicResource BarBrush}">

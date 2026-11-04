@@ -39,6 +39,7 @@ public partial class MainWindow : Window
     private bool _fullscreen;
     private bool _chromeHidden;
     private bool _loading;
+    private CanvasColorPicker? _canvasColorPicker;
     private bool _deleting;
     private bool _updateChecked;
     private UpdateWindow? _updateWindow;
@@ -98,6 +99,7 @@ public partial class MainWindow : Window
         };
         Closing += (_, _) =>
         {
+            CloseCanvasColor(false);
             _slideshow.Stop(); _toastTimer.Stop(); ++_generation; ++_thumbGeneration; ++_openGeneration;
             Surface.SetDocument(null, DefaultFit);
             foreach (var cached in _cache.Values) cached.Dispose();
@@ -169,7 +171,9 @@ public partial class MainWindow : Window
         foreach (var menu in new ItemsControl[] { background, quickBackground })
         {
             menu.Items.Add(new Separator());
-            menu.Items.Add(Item(T("自定义颜色…", "Custom color…"), ChooseCanvasColor, _settings.Background == "custom"));
+            var paletteItem = Item(T("调色盘…", "Color palette…"), ChooseCanvasColor, _settings.Background == "custom");
+            paletteItem.Icon = new TextBlock { Text = "\uE790", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets") };
+            menu.Items.Add(paletteItem);
         }
         CanvasToggleButton.ContextMenu = quickBackground;
         MoreMenu.Items.Add(background);
@@ -262,7 +266,7 @@ public partial class MainWindow : Window
         }
         return content.ToString();
     }
-    private void SetLanguage(string language) { _settings.Language = language; ApplyLanguage(); SaveSettings(); }
+    private void SetLanguage(string language) { CloseCanvasColor(false); _settings.Language = language; ApplyLanguage(); SaveSettings(); }
     private static readonly string[] CanvasBackgrounds = ["black", "white", "gray", "checker"];
     private string CanvasBackgroundName(string value) => value switch
     {
@@ -287,6 +291,7 @@ public partial class MainWindow : Window
     }
     private void SetCanvasBackground(string value)
     {
+        CloseCanvasColor(false);
         _settings.Background = value; ApplyCanvasBackground(); BuildMenu(); SaveSettings(); Surface.Focus();
     }
     private void CanvasChooseClick(object sender, RoutedEventArgs e)
@@ -298,24 +303,32 @@ public partial class MainWindow : Window
     }
     private void ChooseCanvasColor()
     {
-        var picker = new CanvasColorWindow(IsChinese, _settings.CustomBackgroundColor) { Owner = this };
-        void Preview(string color) => RenderCanvasBackground("custom", color);
-        picker.PreviewColorChanged += Preview;
-        try
+        if (_canvasColorPicker is not null) { _canvasColorPicker.Focus(); BuildMenu(); return; }
+        var picker = new CanvasColorPicker(IsChinese, _settings.CustomBackgroundColor);
+        _canvasColorPicker = picker;
+        picker.PreviewColorChanged += PreviewCanvasColor;
+        picker.Accepted += () => CloseCanvasColor(true);
+        picker.Cancelled += () => CloseCanvasColor(false);
+        CanvasColorScroll.Content = picker;
+        CanvasColorHost.Visibility = Visibility.Visible;
+        InputMethod.SetIsInputMethodEnabled(picker, true);
+        BuildMenu();
+    }
+    private void PreviewCanvasColor(string color) => RenderCanvasBackground("custom", color);
+    private void CloseCanvasColor(bool apply)
+    {
+        if (_canvasColorPicker is not { } picker) return;
+        _canvasColorPicker = null;
+        picker.PreviewColorChanged -= PreviewCanvasColor;
+        CanvasColorScroll.Content = null;
+        CanvasColorHost.Visibility = Visibility.Collapsed;
+        if (apply)
         {
-            if (picker.ShowDialog() == true)
-            {
-                _settings.CustomBackgroundColor = picker.SelectedColor;
-                SetCanvasBackground("custom");
-            }
+            _settings.CustomBackgroundColor = picker.SelectedColor;
+            _settings.Background = "custom";
+            SaveSettings();
         }
-        finally
-        {
-            picker.PreviewColorChanged -= Preview;
-            ApplyCanvasBackground();
-            BuildMenu();
-            Surface.Focus();
-        }
+        ApplyCanvasBackground(); BuildMenu(); Surface.Focus();
     }
     private void ApplyCanvasBackground() => RenderCanvasBackground(_settings.Background, _settings.CustomBackgroundColor);
     private void RenderCanvasBackground(string background, string customColor)
@@ -348,6 +361,7 @@ public partial class MainWindow : Window
     private void SaveSettings() { if (!_settings.Save()) ShowToast(T("偏好设置暂时无法保存", "Preferences could not be saved")); }
     private void ApplyTheme(ViewerTheme theme)
     {
+        CloseCanvasColor(false);
         theme.Validate(); _settings.Theme = theme;
         var resources = Application.Current.Resources;
         resources["ShellBrush"] = ViewerTheme.Brush(theme.Shell); resources["BarBrush"] = ViewerTheme.Brush(theme.Toolbar);
@@ -772,6 +786,11 @@ public partial class MainWindow : Window
         T("Ctrl+O  打开图片\nCtrl+Shift+O  打开文件夹\n← / →  上一张 / 下一张\n滚轮  围绕鼠标缩放\n拖动  移动画面\nF / 0  完整显示并自动放大\n1  原始像素\n+ / −  放大 / 缩小\nR  旋转    H  镜像\nB  切换黑白背景\nDelete / Del  移入回收站\nV  对照审阅\nT  缩略图    I  图片信息\nP  幻灯片    空格  暂停动图\nF11 / 双击  全屏\nTab  隐藏工具栏\nEsc  退出全屏 / 关闭信息\nCtrl+C  复制原图\nCtrl+Shift+C  复制路径\nCtrl+V  粘贴图片\nCtrl+E  在文件夹中显示\nF5  重新载入", "Ctrl+O  Open images\nCtrl+Shift+O  Open folder\n← / →  Previous / next image\nMouse wheel  Zoom around pointer\nDrag  Pan\nF / 0  Enlarge to fit\n1  Actual pixels\n+ / −  Zoom in / out\nR  Rotate    H  Mirror\nB  Switch black/white background\nDelete / Del  Move to Recycle Bin\nV  Compare & review\nT  Thumbnails    I  Image info\nP  Slideshow    Space  Pause animation\nF11 / Double-click  Fullscreen\nTab  Hide toolbars\nEsc  Leave fullscreen / close info\nCtrl+C  Copy original image\nCtrl+Shift+C  Copy file path\nCtrl+V  Paste image\nCtrl+E  Show in folder\nF5  Reload"), T("快捷键", "Keyboard shortcuts"));
     private async void KeyPressed(object sender, KeyEventArgs e)
     {
+        if (_canvasColorPicker is not null && e.Key == Key.Escape)
+        {
+            CloseCanvasColor(false); e.Handled = true; return;
+        }
+        if (_canvasColorPicker?.IsKeyboardFocusWithin == true) return;
         // Preserve native keyboard handling and prevent accidental deletion while
         // focus is on toolbar/menu controls rather than the image canvas.
         if (MoreMenu.IsSubmenuOpen || Keyboard.FocusedElement is TextBox || e.OriginalSource is TextBox) return;

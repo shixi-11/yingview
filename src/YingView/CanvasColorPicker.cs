@@ -41,29 +41,37 @@ internal static class CanvasColor
     }
 }
 
-internal sealed class CanvasColorWindow : Window
+internal sealed class CanvasColorPicker : UserControl
 {
-    private readonly TextBox _hex = new() { Name = "ColorHex", MaxLength = 16, Width = 148, Padding = new Thickness(10, 8, 10, 8), FontSize = 15, FontFamily = new FontFamily("Consolas"), Background = Brushes.White, Foreground = Brushes.Black };
+    private readonly TextBox _hex = new() { Name = "ColorHex", MaxLength = 16, Width = 146, Padding = new Thickness(8, 6, 8, 6), FontSize = 14, FontFamily = new FontFamily("Consolas"), Background = Brushes.White, Foreground = Brushes.Black };
     private readonly Button _apply;
-    private readonly Border _preview = new() { Width = 50, Height = 36, CornerRadius = new CornerRadius(5), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 10, 0) };
+    private readonly Border _preview = new() { Width = 34, Height = 31, CornerRadius = new CornerRadius(5), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 10, 0) };
     private readonly TextBlock _error = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
     private readonly Slider _hue = new() { Name = "ColorHue", Minimum = 0, Maximum = 359.9, SmallChange = 1, LargeChange = 15, Margin = new Thickness(0, 8, 0, 12) };
-    private readonly ColorField _field = new() { Name = "ColorArea", Height = 178, Focusable = true, Margin = new Thickness(0, 0, 0, 12) };
+    private readonly ColorField _field = new() { Name = "ColorArea", Height = 138, Focusable = true, Margin = new Thickness(0, 0, 0, 12) };
     private bool _refreshing;
     public string SelectedColor { get; private set; }
     public event Action<string>? PreviewColorChanged;
+    public event Action? Accepted;
+    public event Action? Cancelled;
 
-    public CanvasColorWindow(bool chinese, string initialColor)
+    public CanvasColorPicker(bool chinese, string initialColor)
     {
         string T(string zh, string en) => chinese ? zh : en;
-        Title = T("自定义背景颜色", "Custom background color");
-        Width = 380; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        Width = 264;
+        AutomationProperties.SetName(this, T("调色盘", "Color palette"));
         FontFamily = new FontFamily("Segoe UI, Microsoft YaHei UI"); FontSize = 13;
-        SetResourceReference(BackgroundProperty, "ShellBrush"); SetResourceReference(ForegroundProperty, "TextBrush");
+        SetResourceReference(BackgroundProperty, "BarBrush"); SetResourceReference(ForegroundProperty, "TextBrush");
         SelectedColor = CanvasColor.TryNormalize(initialColor, out var valid) ? valid : "#D6E4EF";
-        var panel = new StackPanel { Margin = new Thickness(22) }; Content = panel;
-        panel.Children.Add(new TextBlock { Text = T("选择背景颜色", "Choose a background color"), FontSize = 19, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 16) });
+        var panel = new StackPanel { Margin = new Thickness(14) }; Content = panel;
+        var heading = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+        var close = new Button { Name = "ClosePalette", Content = "×", Padding = new Thickness(7, 1, 7, 1), FontSize = 18 };
+        AutomationProperties.SetName(close, T("关闭调色盘并取消", "Close palette and cancel"));
+        close.Click += (_, _) => Cancelled?.Invoke(); DockPanel.SetDock(close, Dock.Right); heading.Children.Add(close);
+        var caption = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        caption.Children.Add(new TextBlock { Text = "\uE790", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 16, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center });
+        caption.Children.Add(new TextBlock { Text = T("调色盘", "Color palette"), FontSize = 14, FontWeight = FontWeights.SemiBold });
+        heading.Children.Add(caption); panel.Children.Add(heading);
         AutomationProperties.SetName(_field, T("颜色区域：方向键调整饱和度和明度", "Color area: arrow keys adjust saturation and brightness"));
         panel.Children.Add(_field);
         var hueStrip = new Border { Name = "HueStrip", Height = 14, Cursor = Cursors.Hand, CornerRadius = new CornerRadius(4), Background = new LinearGradientBrush(new GradientStopCollection {
@@ -74,10 +82,10 @@ internal sealed class CanvasColorWindow : Window
         hueStrip.MouseLeftButtonUp += (_, e) => { hueStrip.ReleaseMouseCapture(); e.Handled = true; };
         panel.Children.Add(hueStrip);
         AutomationProperties.SetName(_hue, T("色相", "Hue")); panel.Children.Add(_hue);
-        var colors = new UniformGrid { Name = "ColorSwatches", Columns = 8, Margin = new Thickness(0, 0, 0, 16) };
+        var colors = new UniformGrid { Name = "ColorSwatches", Columns = 8, Margin = new Thickness(0, 0, 0, 12) };
         foreach (var hex in new[] { "#FFFFFF", "#F3E9D2", "#D6E4EF", "#B7D7C8", "#D8C9EC", "#E8BCBB", "#808080", "#000000" })
         {
-            var swatch = new Button { Width = 30, Height = 28, Background = ViewerTheme.Brush(hex), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), ToolTip = hex, Style = new Style(typeof(Button)), Padding = new Thickness(0) };
+            var swatch = new Button { Width = 24, Height = 24, Background = ViewerTheme.Brush(hex), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), ToolTip = hex, Style = new Style(typeof(Button)), Padding = new Thickness(0) };
             AutomationProperties.SetName(swatch, T("颜色 ", "Color ") + hex);
             swatch.Click += (_, _) => SetColor(hex); colors.Children.Add(swatch);
         }
@@ -89,11 +97,12 @@ internal sealed class CanvasColorWindow : Window
         _error.Text = T("请输入 6 位色号，例如 #D6E4EF。", "Enter a 6-digit color, for example #D6E4EF.");
         _error.SetResourceReference(ForegroundProperty, "TextBrush");
         panel.Children.Add(_error);
-        var footer = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 0) };
-        var cancel = new Button { Content = T("取消", "Cancel"), IsCancel = true, Padding = new Thickness(16, 9, 16, 9), Margin = new Thickness(0, 0, 8, 0) };
-        _apply = new Button { Name = "ApplyColor", Content = T("使用颜色", "Use color"), IsDefault = true, Padding = new Thickness(16, 9, 16, 9) };
+        var footer = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+        var cancel = new Button { Content = T("取消", "Cancel"), Name = "CancelColor", Padding = new Thickness(11, 7, 11, 7), Margin = new Thickness(0, 0, 8, 0) };
+        _apply = new Button { Name = "ApplyColor", Content = T("使用颜色", "Use color"), Padding = new Thickness(11, 7, 11, 7) };
         _apply.SetResourceReference(BackgroundProperty, "AccentBrush"); _apply.SetResourceReference(ForegroundProperty, "AccentTextBrush");
-        _apply.Click += (_, _) => { if (CanvasColor.TryNormalize(_hex.Text, out var color)) { SelectedColor = color; DialogResult = true; } };
+        _apply.Click += (_, _) => { if (CanvasColor.TryNormalize(_hex.Text, out var color)) { SelectedColor = color; Accepted?.Invoke(); } };
+        cancel.Click += (_, _) => Cancelled?.Invoke();
         footer.Children.Add(cancel); footer.Children.Add(_apply); panel.Children.Add(footer);
         _hue.ValueChanged += (_, _) => { if (!_refreshing) { _field.Hue = _hue.Value; _field.InvalidateVisual(); UpdateFromField(); } };
         _field.Changed += UpdateFromField;
@@ -103,6 +112,11 @@ internal sealed class CanvasColorWindow : Window
             var ok = CanvasColor.TryNormalize(_hex.Text, out var color);
             _apply.IsEnabled = ok; _error.Visibility = ok ? Visibility.Hidden : Visibility.Visible;
             if (ok) SetColor(color, false);
+        };
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape) { Cancelled?.Invoke(); e.Handled = true; }
+            else if (e.Key == Key.Enter && _apply.IsEnabled) { _apply.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; }
         };
         SetColor(SelectedColor);
     }

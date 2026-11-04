@@ -62,7 +62,6 @@ internal static class BackgroundAssertions
         Check(CanvasColor.TryNormalize(" ab12ef ", out var normalized) && normalized == "#AB12EF", "HEX entry must normalize optional #, case and whitespace.");
         foreach (var invalid in new[] { "", "##123456", "#12345G", "#00123456", "Red", "#123456\nX" })
             Check(!CanvasColor.TryNormalize(invalid, out _), "Invalid or transparent color values must be rejected.");
-        var picker = new CanvasColorWindow(false, "#D6E4EF");
         static T Find<T>(DependencyObject parent, string name) where T : FrameworkElement
         {
             for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
@@ -73,105 +72,93 @@ internal static class BackgroundAssertions
             }
             throw new InvalidOperationException("Missing color picker control: " + name);
         }
-        picker.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
-        {
-            var hexBox = Find<System.Windows.Controls.TextBox>(picker, "ColorHex");
-            var apply = Find<System.Windows.Controls.Button>(picker, "ApplyColor");
-            hexBox.Text = "not-a-color";
-            Check(!apply.IsEnabled, "Invalid color must disable Apply.");
-            hexBox.Text = "19A7C2";
-            Check(apply.IsEnabled, "Valid HEX entry must enable Apply.");
-            apply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-        }));
-        Check(picker.ShowDialog() == true && picker.SelectedColor == "#19A7C2", "Apply must return the exact user-selected color.");
-        var dragPicker = new CanvasColorWindow(false, "#FF0000");
-        dragPicker.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
-        {
-            var hue = Find<System.Windows.Controls.Slider>(dragPicker, "ColorHue");
-            var field = Find<FrameworkElement>(dragPicker, "ColorArea");
-            var hex = Find<System.Windows.Controls.TextBox>(dragPicker, "ColorHex");
-            hue.Value = 120;
-            Check(hex.Text == "#00FF00", "Moving hue from red to green must update the selected color.");
-            void Key(System.Windows.Input.Key key) => field.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,
-                PresentationSource.FromVisual(field), 0, key) { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent });
-            Key(System.Windows.Input.Key.Left);
-            Check(hex.Text == "#03FF03", "The color area must support keyboard saturation adjustment.");
-            Key(System.Windows.Input.Key.Right); Key(System.Windows.Input.Key.Right); Key(System.Windows.Input.Key.Up);
-            Check(hex.Text == "#00FF00", "Keyboard adjustments must clamp at the color area boundaries.");
-            Key(System.Windows.Input.Key.Down);
-            Check(hex.Text == "#00FC00", "The color area must support keyboard brightness adjustment.");
-            Find<System.Windows.Controls.Button>(dragPicker, "ApplyColor").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-        }));
-        Check(dragPicker.ShowDialog() == true && dragPicker.SelectedColor == "#00FC00", "Palette adjustments must commit the actual selected color.");
-        var cancelPicker = new CanvasColorWindow(true, "#19A7C2");
-        cancelPicker.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
-        {
-            Find<System.Windows.Controls.TextBox>(cancelPicker, "ColorHex").Text = "#FF0000";
-            cancelPicker.Close();
-        }));
-        Check(cancelPicker.ShowDialog() != true && cancelPicker.SelectedColor == "#19A7C2", "Closing the picker must not commit a draft color.");
-        settings.CustomBackgroundColor = picker.SelectedColor;
-        setBackground.Invoke(window, ["custom"]);
-        Check(((SolidColorBrush)surface.CanvasBackgroundBrush).Color == Color.FromRgb(25, 167, 194), "Custom selection must reach the actual viewing surface.");
-        Check(button.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Count(i => i.IsChecked) == 1, "Custom mode must be the only checked background choice.");
-        Check(((SolidColorBrush)title.Foreground).Color == Colors.Black, "Custom background text must choose readable ink.");
+        var choose = typeof(MainWindow).GetMethod("ChooseCanvasColor", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var pickerField = typeof(MainWindow).GetField("_canvasColorPicker", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var paletteHost = (System.Windows.Controls.Border)typeof(MainWindow).GetField("CanvasColorHost", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+        var root = (FrameworkElement)window.Content;
         var settingsFile = (string)typeof(Preferences).GetProperty("FileName", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(settings)!;
+        var originalDocument = surface.Document;
+        var layoutBitmap = BitmapSource.Create(20, 10, 96, 96, PixelFormats.Bgra32, null, new byte[800], 80); layoutBitmap.Freeze();
+        using var layoutDocument = new ImageDocument([layoutBitmap], [100], 20, 10, "PNG", 800);
+        surface.SetDocument(layoutDocument, ViewportFitMode.Contain);
+        var windowCount = Application.Current.Windows.Count;
+        var keyboardSource = HwndSource.FromHwnd(new WindowInteropHelper(window).EnsureHandle())!;
+        void Layout(double width, double height)
+        {
+            root.Measure(new Size(width, height)); root.Arrange(new Rect(0, 0, width, height)); root.UpdateLayout();
+        }
+        CanvasColorPicker OpenPicker()
+        {
+            choose.Invoke(window, null); Layout(1280, 800);
+            Check(Application.Current.Windows.Count == windowCount, "The palette must be embedded without opening an extra window.");
+            return (CanvasColorPicker)pickerField.GetValue(window)!;
+        }
         foreach (var mode in new[] { "black", "white", "gray", "checker", "theme", "custom" })
         {
             setBackground.Invoke(window, [mode]);
             var originalBrush = surface.CanvasBackgroundBrush;
             var originalColor = settings.CustomBackgroundColor;
             var savedBeforePreview = File.ReadAllBytes(settingsFile);
-            Exception? previewFailure = null;
-            var choice = button.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Single(i => Equals(i.Header, "Custom color…"));
-            new WindowInteropHelper(window).EnsureHandle();
-            window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
+            var picker = OpenPicker();
+            Check(paletteHost.Visibility == Visibility.Visible, "Opening the palette must show the embedded panel.");
+            var hex = Find<System.Windows.Controls.TextBox>(picker, "ColorHex");
+            var apply = Find<System.Windows.Controls.Button>(picker, "ApplyColor");
+            hex.Text = "#1234AB";
+            Check(surface.CanvasMode == "custom" && ((SolidColorBrush)surface.CanvasBackgroundBrush).Color == Color.FromRgb(18, 52, 171),
+                "Valid color edits must preview on the actual image canvas before Apply.");
+            hex.Text = "not-a-color";
+            Check(!apply.IsEnabled && ((SolidColorBrush)surface.CanvasBackgroundBrush).Color == Color.FromRgb(18, 52, 171), "Invalid HEX must disable Apply and retain the last valid preview.");
+            Find<System.Windows.Controls.Primitives.UniformGrid>(picker, "ColorSwatches").Children.OfType<System.Windows.Controls.Button>().First()
+                .RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+            Check(((SolidColorBrush)surface.CanvasBackgroundBrush).Color == Colors.White, "Swatches must preview immediately.");
+            hex.Text = "#FF0000";
+            Find<System.Windows.Controls.Slider>(picker, "ColorHue").Value = 120;
+            Check(((SolidColorBrush)surface.CanvasBackgroundBrush).Color == Colors.Lime, "Dragging hue must preview without Apply.");
+            var field = Find<FrameworkElement>(picker, "ColorArea");
+            void Key(System.Windows.Input.Key key) => field.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,
+                keyboardSource, 0, key) { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent });
+            Key(System.Windows.Input.Key.Left);
+            Check(hex.Text == "#03FF03", "The palette must support keyboard saturation adjustment.");
+            Key(System.Windows.Input.Key.Right); Key(System.Windows.Input.Key.Right); Key(System.Windows.Input.Key.Up); Key(System.Windows.Input.Key.Down);
+            Check(hex.Text == "#00FC00", "Palette keyboard movement must clamp boundaries and adjust brightness.");
+            Check(settings.Background == mode && settings.CustomBackgroundColor == originalColor, "Preview must not mutate committed preferences.");
+            Check(savedBeforePreview.SequenceEqual(File.ReadAllBytes(settingsFile)), "Dragging a color must not save the preview.");
+            foreach (var size in new[] { new Size(720, 520), new Size(1280, 800), new Size(3840, 2160) })
             {
-                var livePicker = Application.Current.Windows.OfType<CanvasColorWindow>().Single();
-                try
-                {
-                    var hex = Find<System.Windows.Controls.TextBox>(livePicker, "ColorHex");
-                    hex.Text = "#1234AB";
-                    Check(surface.CanvasMode == "custom" && ((SolidColorBrush)surface.CanvasBackgroundBrush).Color == Color.FromRgb(18, 52, 171),
-                        "Valid color edits must preview on the actual image canvas before Apply.");
-                    hex.Text = "not-a-color";
-                    Check(((SolidColorBrush)surface.CanvasBackgroundBrush).Color == Color.FromRgb(18, 52, 171), "Invalid HEX must leave the last valid preview unchanged.");
-                    var swatch = Find<System.Windows.Controls.Primitives.UniformGrid>(livePicker, "ColorSwatches").Children.OfType<System.Windows.Controls.Button>().First();
-                    swatch.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-                    Check(((SolidColorBrush)surface.CanvasBackgroundBrush).Color == Colors.White, "Swatch choices must preview immediately.");
-                    hex.Text = "#FF0000";
-                    Find<System.Windows.Controls.Slider>(livePicker, "ColorHue").Value = 120;
-                    Check(((SolidColorBrush)surface.CanvasBackgroundBrush).Color == Colors.Lime, "Dragging hue must preview the new color without Apply.");
-                    Check(settings.Background == mode && settings.CustomBackgroundColor == originalColor, "Preview must not mutate committed preferences.");
-                    Check(savedBeforePreview.SequenceEqual(File.ReadAllBytes(settingsFile)), "Dragging a color must not save the preview.");
-                    if (mode is "black" or "checker" or "custom") livePicker.DialogResult = false;
-                    else livePicker.Close();
-                }
-                catch (Exception error) { previewFailure = error; }
-                finally { if (livePicker.IsVisible) livePicker.Close(); }
-            }));
-            typeof(System.Windows.Controls.MenuItem).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(choice, null);
-            var menuFrame = new System.Windows.Threading.DispatcherFrame();
-            window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, new Action(() => menuFrame.Continue = false));
-            System.Windows.Threading.Dispatcher.PushFrame(menuFrame);
-            if (previewFailure is not null) throw previewFailure;
-            Check(settings.Background == mode && settings.CustomBackgroundColor == originalColor, "Cancel or close must keep the original committed color.");
-            Check(Equals(surface.CanvasBackgroundBrush, originalBrush) || surface.CanvasBackgroundBrush.ToString() == originalBrush.ToString(),
-                "Cancel or close must restore the exact original canvas background, including checker and theme modes.");
-            Check(savedBeforePreview.SequenceEqual(File.ReadAllBytes(settingsFile)), "Cancel or close must keep the saved preferences unchanged.");
-            Check(button.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Count(i => i.IsChecked) == 1,
-                "Cancel must restore exactly one checked background menu item.");
+                Layout(size.Width, size.Height);
+                var imageBounds = new Rect(surface.TranslatePoint(new Point(), root), surface.RenderSize);
+                var paletteBounds = new Rect(paletteHost.TranslatePoint(new Point(), root), paletteHost.RenderSize);
+                Check(imageBounds.Right <= paletteBounds.Left + .5 && imageBounds.Width >= 400,
+                    "The palette must sit beside the image without covering its canvas, even at minimum window size.");
+                Check(surface.View.DisplayWidth <= surface.ActualWidth + .5 && surface.View.DisplayHeight <= surface.ActualHeight + .5,
+                    "The whole image must still fit while the embedded palette is open.");
+                Check(paletteBounds.Right <= root.ActualWidth + .5 && paletteBounds.Bottom <= root.ActualHeight + .5,
+                    "The palette must remain inside the viewer at all supported window sizes.");
+            }
+            var cancel = Find<System.Windows.Controls.Button>(picker, mode is "black" or "checker" or "custom" ? "CancelColor" : "ClosePalette");
+            cancel.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+            Check(pickerField.GetValue(window) is null && paletteHost.Visibility == Visibility.Collapsed, "Cancel or close must collapse the embedded palette.");
+            Check(settings.Background == mode && settings.CustomBackgroundColor == originalColor, "Cancel must preserve the original committed color.");
+            Check(Equals(surface.CanvasBackgroundBrush, originalBrush) || surface.CanvasBackgroundBrush.ToString() == originalBrush.ToString(), "Cancel must restore the exact original canvas background.");
+            Check(savedBeforePreview.SequenceEqual(File.ReadAllBytes(settingsFile)), "Cancel must not save draft preferences.");
+            Check(button.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Count(i => i.IsChecked) == 1, "Cancel must retain one checked background choice.");
         }
-        window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
-        {
-            var livePicker = Application.Current.Windows.OfType<CanvasColorWindow>().Single();
-            Find<System.Windows.Controls.TextBox>(livePicker, "ColorHex").Text = "#365A79";
-            Find<System.Windows.Controls.Button>(livePicker, "ApplyColor").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-        }));
-        typeof(MainWindow).GetMethod("ChooseCanvasColor", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
+        var acceptedPicker = OpenPicker();
+        Find<System.Windows.Controls.TextBox>(acceptedPicker, "ColorHex").Text = "#365A79";
+        Find<System.Windows.Controls.Button>(acceptedPicker, "ApplyColor").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
         var committed = Preferences.Load(settingsFile);
-        Check(committed.Background == "custom" && committed.CustomBackgroundColor == "#365A79", "Apply after preview must save the final selected color.");
-        Check(((SolidColorBrush)surface.CanvasBackgroundBrush).Color == Color.FromRgb(54, 90, 121), "Apply must retain the preview on the actual canvas.");
+        Check(committed.Background == "custom" && committed.CustomBackgroundColor == "#365A79", "Apply must save the final color.");
+        Check(pickerField.GetValue(window) is null && paletteHost.Visibility == Visibility.Collapsed, "Apply must close the embedded palette.");
+        Check(((SolidColorBrush)surface.CanvasBackgroundBrush).Color == Color.FromRgb(54, 90, 121), "Apply must retain the selected background.");
+        OpenPicker();
+        var keyHandler = typeof(MainWindow).GetMethod("KeyPressed", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var escape = new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, keyboardSource, 0, System.Windows.Input.Key.Escape) { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent };
+        keyHandler.Invoke(window, [window, escape]);
+        Check(escape.Handled && pickerField.GetValue(window) is null, "Escape must cancel the embedded palette before other viewer shortcuts.");
+        OpenPicker(); setBackground.Invoke(window, ["black"]);
+        Check(pickerField.GetValue(window) is null && settings.Background == "black", "Selecting a preset must close and discard any palette draft.");
+        Layout(1280, 800);
+        surface.SetDocument(originalDocument, ViewportFitMode.Contain);
         var customSettings = new Preferences(path) { Background = "custom", CustomBackgroundColor = "#19A7C2", AppearanceUiVersion = 2 };
         Check(customSettings.Save(), "Custom color settings must save.");
         var reloaded = Preferences.Load(path);
