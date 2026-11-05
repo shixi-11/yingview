@@ -1,10 +1,10 @@
 # YingView
 
-See the whole picture, then look closer. YingView is a free, open-source image viewer created by Shixi Lin. Open a picture or folder in a clean, maximized window, browse in natural filename order, and compare two images side by side. Choose a black, white, gray, checkerboard or custom background to inspect artwork and transparent edges. Your images stay on your device.
+See the whole picture, then look closer. YingView is a free, open-source image viewer created by Shixi Lin. Open a picture or folder in a clean, maximized window, browse in natural filename order, and compare two images side by side. Use the photo grid to select multiple images, save favorites, move selections to the Recycle Bin and compare any two photos. Choose a black, white, gray, checkerboard or custom background to inspect artwork and transparent edges. Your images stay on your device.
 
 [简体中文](README.zh-CN.md) · [Download](https://github.com/shixi-11/yingview/releases/latest) · [Report an issue](https://github.com/shixi-11/yingview/issues) · [Support development](https://shixilin.com/en/support)
 
-**Windows source: 0.3.21 Preview · Windows 10/11 x64 · AGPL-3.0-only**
+**Windows source: 0.3.22 Preview · Windows 10/11 x64 · AGPL-3.0-only**
 
 ## Windows features
 
@@ -21,6 +21,14 @@ See the whole picture, then look closer. YingView is a free, open-source image v
 | Keep the client current | Standalone update checks, an installation helper and a default-image-viewer setup flow. |
 
 The palette is embedded in the main window, so it does not cover the image with a separate dialog. Fit mode adjusts the picture to the remaining space. The Background button cycles four presets; **B** switches black/white. **T** toggles thumbnails, **F** fits the image, **1** selects actual pixels, **V** opens comparison, and **F11** toggles fullscreen.
+
+### Photo selection for photographers and clients
+
+Click **Select photos**, or press **Ctrl+Shift+P**, to open the contact sheet. **Ctrl-click** selects individual photos; **Shift-click** selects a range. Select exactly two images and choose **Compare two** for side-by-side inspection with synchronized zoom and panning. Double-click a photo for a whole-image preview; close the preview to return to the grid.
+
+Favorites are saved locally between sessions. Filter to favorites or export their filenames as a TXT list. Photographer mode can move multiple selected files to the Recycle Bin after one confirmation; failed files remain in the selection, with no permanent-delete fallback. The grid shows up to 120 thumbnails per page and supports selections across pages.
+
+Switch to **Client selection** and enter a client name to keep a separate favorite list for each client. Source-file deletion is disabled in that mode. Lists stay on the current device: there is no hosted gallery, remote proofing link or cross-device sync. Give clients photo copies and use the exported filename list for handoff. This release does not include a dedicated RAW workflow, star ratings, photo editing or cloud delivery.
 
 ### Formats and practical limits
 
@@ -40,7 +48,7 @@ Updates are checked at most once per day after the first window appears, if enab
 
 ## macOS preview
 
-The repository also includes a native macOS 13+ client built with SwiftUI, AppKit and ImageIO. It supports image/folder opening, fit and physical-pixel views, browsing, zoom, rotation, Trash, thumbnails, appearance settings and basic two-image comparison. It does not yet include every Windows feature listed above.
+The repository also includes a native macOS 13+ client built with SwiftUI, AppKit and ImageIO. It supports image/folder opening, fit and physical-pixel views, browsing, zoom, rotation, Trash, thumbnails, appearance settings a photo selection grid, Cmd/Shift multi-selection, separate client favorite lists, batch Trash and comparison of any two selected photos. It does not yet include every Windows feature listed above.
 
 The build script produces separate Chinese and English apps for Apple silicon and Intel. Developer ID signing, notarization and Mac App Store submission are pending. Check the actual release assets before downloading.
 

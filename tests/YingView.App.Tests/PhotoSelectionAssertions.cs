@@ -19,6 +19,12 @@ internal static class PhotoSelectionAssertions
         var folder = Path.Combine(output, "photo-selection"); Directory.CreateDirectory(folder);
         var settings = Path.Combine(folder, Guid.NewGuid().ToString("N") + ".json");
         var first = Path.Combine(folder, "01.png"); var second = Path.Combine(folder, "02.png"); var third = Path.Combine(folder, "03.png");
+        foreach (var path in new[] { first, second, third })
+        {
+            var bitmap = System.Windows.Media.Imaging.BitmapSource.Create(2, 2, 96, 96, PixelFormats.Bgra32, null, new byte[16], 8);
+            using var stream = File.Create(path);
+            new System.Windows.Media.Imaging.PngBitmapEncoder { Frames = { System.Windows.Media.Imaging.BitmapFrame.Create(bitmap) } }.Save(stream);
+        }
         var store = new PhotoSelectionStore(settings);
         store.Set("favorites", [first, third], true);
         Check(new PhotoSelectionStore(settings).Read("favorites").SetEquals([first, third]), "Favorites must survive a store reload.");
@@ -67,6 +73,15 @@ internal static class PhotoSelectionAssertions
             Check(root.DesiredSize.Width <= width + 1, "Photo selection controls must fit the minimum viewer width.");
         }
         window.Close();
+        var viewer = new MainWindow(new Preferences(Path.Combine(folder, "viewer.json")) { Language = "en" }, []);
+        typeof(MainWindow).GetField("_files", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(viewer, new[] { first, second });
+        await viewer.ApplyRecycledSelectionAsync([first], first, 0);
+        var remaining = (string[])typeof(MainWindow).GetField("_files", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(viewer)!;
+        Check(remaining.SequenceEqual([second]), "Batch removal must not expand an explicitly opened subset to unrelated folder images.");
+        await viewer.ApplyRecycledSelectionAsync([second], second, 0);
+        remaining = (string[])typeof(MainWindow).GetField("_files", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(viewer)!;
+        Check(remaining.Length == 0, "Removing the last selected image must show an empty viewer without scanning its folder.");
+        viewer.Close();
         // Validate every target before invoking even the first Shell operation.
         var disposable = Path.Combine(folder, "validation-only.txt"); File.WriteAllText(disposable, "fixture");
         bool batchRejected = false;

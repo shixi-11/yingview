@@ -244,8 +244,8 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
     func setFavorites(_ urls: [URL], favorite: Bool) {
         guard !photoBusy else { return }
         var lists: [String: [String]] = [:]
-        if let data = defaults.dictionary(forKey: "photoSelections.v1") {
-            guard data["version"] as? Int == 1, let saved = data["lists"] as? [String: [String]] else { photoStatus = Copy.t("收藏清单无法读取，原数据未被覆盖。", "The favorite list could not be read. Existing data was not overwritten."); return }
+        if let existing = defaults.object(forKey: "photoSelections.v1") {
+            guard let data = existing as? [String: Any], data["version"] as? Int == 1, let saved = data["lists"] as? [String: [String]] else { photoStatus = Copy.t("收藏清单无法读取，原数据未被覆盖。", "The favorite list could not be read. Existing data was not overwritten."); return }
             lists = saved
         }
         var ids = Set(lists[photoListKey] ?? [])

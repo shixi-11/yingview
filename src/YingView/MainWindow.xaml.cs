@@ -693,12 +693,24 @@ public partial class MainWindow : Window
         var picker = new Review.PhotoSelectionWindow(_files, current, IsChinese) { Owner = this };
         picker.ShowDialog();
         if (picker.RecycledFiles.Count == 0) return;
-        var remaining = _files.Except(picker.RecycledFiles, StringComparer.OrdinalIgnoreCase).ToArray();
-        if (remaining.Length == 0) { await OpenPaths([Path.GetDirectoryName(current)!]); return; }
-        var target = Array.FindIndex(remaining, p => string.Equals(p, current, StringComparison.OrdinalIgnoreCase));
-        if (target < 0) target = Math.Min(previousIndex, remaining.Length - 1);
-        await OpenPaths(remaining);
-        if (target != _index) await Navigate(target - _index);
+        await ApplyRecycledSelectionAsync(picker.RecycledFiles, current, previousIndex);
+    }
+    internal async Task ApplyRecycledSelectionAsync(IEnumerable<string> recycled, string current, int previousIndex)
+    {
+        var removed = recycled.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        ++_openGeneration; // Invalidate any older folder indexing without expanding this selection.
+        foreach (var path in removed) RemoveCached(path);
+        _settings.RecentFiles.RemoveAll(removed.Contains);
+        _files = _files.Where(p => !removed.Contains(p)).ToArray();
+        if (_files.Length == 0)
+            ShowEmptyState(T("照片已移入回收站", "Photos moved to Recycle Bin"), T("可以从系统回收站恢复，或打开其他照片。", "Restore them from the system Recycle Bin, or open other photos."));
+        else
+        {
+            _index = Array.FindIndex(_files, p => string.Equals(p, current, StringComparison.OrdinalIgnoreCase));
+            if (_index < 0) _index = Math.Clamp(previousIndex, 0, _files.Length - 1);
+            await LoadCurrent();
+        }
+        BuildMenu(); SaveSettings();
     }
     private void OpenReview()
     {

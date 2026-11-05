@@ -25,6 +25,9 @@ struct PhotoSelectionView: View {
                 Button(Copy.t("清空选择", "Clear")) { model.photoSelection.replace([]) }
                 Button(Copy.t("收藏所选", "Favorite")) { model.setFavorites(model.selectedPhotos, favorite: true) }.disabled(model.selectedPhotos.isEmpty)
                 Button(Copy.t("取消收藏", "Unfavorite")) { model.setFavorites(model.selectedPhotos, favorite: false) }.disabled(model.selectedPhotos.isEmpty)
+                Spacer()
+            }.controlSize(.small)
+            HStack {
                 Button(Copy.t("对比两张", "Compare two")) { model.compareSelectedPhotos() }.disabled(model.selectedPhotos.count != 2)
                 Button(Copy.t("移到废纸篓", "Move to Trash")) { model.trashSelection() }.disabled(model.clientMode || model.selectedPhotos.isEmpty)
                 Spacer()

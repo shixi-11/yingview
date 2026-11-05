@@ -97,7 +97,49 @@ import YingViewCore
             hosting.layoutSubtreeIfNeeded()
             try await Task.sleep(nanoseconds: 250_000_000)
             try render(hosting, to: output.appendingPathComponent("viewer.png"))
-            let report = "PASS: fixture PNG decode; natural navigation; contain/enlargement; rotation; physical 100%; zoom; compare; corruption/moved-file recovery; refresh; fixture Trash; appearance rollback; native PNG rendering.\n"
+            // Isolated photographer/client metadata and disposable selection fixtures.
+            let picksFolder = root.appendingPathComponent("picks", isDirectory: true)
+            try FileManager.default.createDirectory(at: picksFolder, withIntermediateDirectories: true)
+            let picks = (1...3).map { picksFolder.appendingPathComponent("pick\($0).png") }
+            for url in picks { try fixture(at: url, width: 160, height: 100) }
+            let suite = "YingViewSelectionSmoke-\(UUID().uuidString)"
+            let storage = UserDefaults(suiteName: suite)!
+            defer { storage.removePersistentDomain(forName: suite) }
+            let selector = ViewerModel(defaults: storage)
+            selector.open(picks[0]); try await awaitLoad(selector)
+            selector.setFavorites([picks[0], picks[2]], favorite: true)
+            let restored = ViewerModel(defaults: storage)
+            try require(restored.favoriteIDs.count == 2, "Photographer favorites survive reload")
+            selector.clientMode = true; selector.clientName = "Customer A"
+            selector.setFavorites([picks[1]], favorite: true)
+            try require(selector.favoriteIDs == Set([PhotoSelectionState.identity(picks[1])]), "Named client list is independent")
+            try require(!selector.trashCurrent() && FileManager.default.fileExists(atPath: picks[0].path), "Client mode blocks native deletion")
+            selector.clientMode = false
+            try require(selector.favoriteIDs.count == 2, "Client picks preserve photographer favorites")
+            storage.set("corrupt sentinel", forKey: "photoSelections.v1")
+            selector.setFavorites([picks[1]], favorite: true)
+            try require(storage.string(forKey: "photoSelections.v1") == "corrupt sentinel" && selector.photoStatus != nil, "Wrong-root metadata is not overwritten")
+            storage.removeObject(forKey: "photoSelections.v1")
+            selector.photoSelection.replace([picks[0], picks[2]])
+            selector.compareSelectedPhotos(); try await awaitLoad(selector)
+            for _ in 0..<500 { if selector.secondImage != nil || selector.secondError != nil { break }; try await Task.sleep(nanoseconds: 20_000_000) }
+            try require(selector.compare && selector.secondURL.map { ViewerLogic.sameFile($0, picks[2]) } == true && selector.secondImage != nil, "Compare chosen non-adjacent photos")
+            selector.showSelection = true
+            let grid = NSHostingView(rootView: ViewerWindow(model: selector))
+            grid.frame = CGRect(x: 0, y: 0, width: 850, height: 650)
+            let gridWindow = NSWindow(contentRect: grid.frame, styleMask: [.titled], backing: .buffered, defer: false)
+            gridWindow.contentView = grid
+            try await Task.sleep(nanoseconds: 500_000_000)
+            try render(grid, to: output.appendingPathComponent("photo-selection.png"))
+            try FileManager.default.removeItem(at: picks[2])
+            selector.refresh(); try await awaitLoad(selector)
+            try require(!selector.compare && selector.comparisonURL == nil, "Refresh clears a removed comparison reference")
+            selector.photoSelection.replace([picks[0], picks[1]]); selector.compareSelectedPhotos()
+            try await awaitLoad(selector)
+            try FileManager.default.removeItem(at: picks[0])
+            selector.refresh(); try await awaitLoad(selector)
+            try require(!selector.compare && selector.comparisonURL == nil, "Refresh cannot compare a photo with itself after left removal")
+            let report = "PASS: fixture PNG decode; natural navigation; contain/enlargement; rotation; physical 100%; zoom; compare; corruption/moved-file recovery; refresh; fixture Trash; appearance rollback; persistent photo/client favorites; corrupt metadata preservation; client deletion guard; non-adjacent comparison; deleted-pair reconciliation; native PNG rendering.\n"
             try report.write(to: output.appendingPathComponent("smoke-test.txt"), atomically: true, encoding: .utf8)
             print(report)
             try FileManager.default.removeItem(at: root)

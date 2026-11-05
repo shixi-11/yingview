@@ -326,7 +326,9 @@ public sealed class ReviewWindow : Window
         int index = _pickers[side].SelectedIndex;
         if (index < 0) return;
         var mark = _marks.GetValueOrDefault(_files[index], Pending);
-        _decisions[side].Text = mark == Keep ? T("已标记保留", "Marked to keep") : T("待定", "Pending");
+        _decisions[side].Text = _selectionStore is null
+            ? (mark == Keep ? T("已标记保留", "Marked to keep") : T("待定", "Pending"))
+            : (mark == Keep ? T("已收藏", "Favorite") : T("未收藏", "Not favorited"));
         _decisions[side].Foreground = mark == Keep ? BrushFrom("#91D9C5") : BrushFrom("#A9B1B8");
     }
 
@@ -397,7 +399,7 @@ public sealed class ReviewWindow : Window
         var sb = new StringBuilder();
         sb.AppendLine(T("文件,标记", "File,Decision"));
         foreach (var (path, mark) in rows)
-            sb.Append(Csv(_selectionStore is null ? path : Path.GetFileName(path))).Append(',').AppendLine(Csv(mark == Keep ? T("保留", "Keep") : T("待定", "Pending")));
+            sb.Append(Csv(_selectionStore is null ? path : Path.GetFileName(path))).Append(',').AppendLine(Csv(_selectionStore is null ? (mark == Keep ? T("保留", "Keep") : T("待定", "Pending")) : (mark == Keep ? T("已收藏", "Favorite") : T("未收藏", "Not favorited"))));
         try
         {
             await File.WriteAllTextAsync(dialog.FileName, sb.ToString(), new UTF8Encoding(true));
