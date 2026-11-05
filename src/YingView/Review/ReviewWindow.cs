@@ -40,6 +40,8 @@ public sealed class ReviewWindow : Window
 
     public ReviewWindow(string[] files, string current, bool isZh, PhotoSelectionStore? selectionStore = null, string selectionList = "favorites")
     {
+        // These viewing windows have no text editor; letter shortcuts must bypass IME composition.
+        InputMethod.SetIsInputMethodEnabled(this, false);
         _isZh = isZh; _selectionStore = selectionStore; _selectionList = selectionList;
         _backgroundNames = isZh ? ["深色", "浅色", "棋盘"] : ["Dark", "Light", "Checker"];
         _files = (files ?? []).Where(ImageLoader.Supports).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();

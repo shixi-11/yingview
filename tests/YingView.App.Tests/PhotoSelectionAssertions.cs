@@ -46,6 +46,11 @@ internal static class PhotoSelectionAssertions
         });
         object Field(string name) => typeof(PhotoSelectionWindow).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
         void Invoke(string name, params object[] args) => typeof(PhotoSelectionWindow).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, args);
+        Check(!System.Windows.Input.InputMethod.GetIsInputMethodEnabled(window), "Photo selection shortcuts must not start IME text composition.");
+        var preview = new PhotoPreviewWindow(first, false);
+        Check(!System.Windows.Input.InputMethod.GetIsInputMethodEnabled(preview), "Preview shortcuts must not start IME text composition."); preview.Close();
+        var compare = new ReviewWindow([first, second], first, false);
+        Check(!System.Windows.Input.InputMethod.GetIsInputMethodEnabled(compare), "Comparison shortcuts must not start IME text composition."); compare.Close();
         var selection = (PhotoSelection)Field("_selection");
         selection.Replace([first, third]); Invoke("ApplySelection");
         Check(((Button)Field("_compare")).IsEnabled, "Two non-adjacent selected photos must enable comparison.");

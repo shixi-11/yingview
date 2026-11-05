@@ -49,6 +49,8 @@ public sealed class PhotoSelectionWindow : Window
     public PhotoSelectionWindow(string[] files, string current, bool chinese, PhotoSelectionStore? store = null,
         Func<IEnumerable<string>, IntPtr, Task<RecycleBinService.BatchResult>>? recycle = null)
     {
+        // These viewing windows have no text editor; letter shortcuts must bypass IME composition.
+        InputMethod.SetIsInputMethodEnabled(this, false);
         _zh = chinese; _store = store ?? new(); _recycle = recycle ?? RecycleBinService.RecycleManyAsync;
         _files = files.Where(ImageLoader.Supports).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         Title = T("选片 · 映窗", "Photo selection · YingView"); Width = 1120; Height = 800; MinWidth = 720; MinHeight = 520;

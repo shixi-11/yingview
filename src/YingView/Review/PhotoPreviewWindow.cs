@@ -14,6 +14,8 @@ internal sealed class PhotoPreviewWindow : Window
     private bool _closed;
     internal PhotoPreviewWindow(string path, bool chinese)
     {
+        // These viewing windows have no text editor; letter shortcuts must bypass IME composition.
+        InputMethod.SetIsInputMethodEnabled(this, false);
         Title = Path.GetFileName(path); Width = 1080; Height = 760; MinWidth = 600; MinHeight = 420;
         WindowStartupLocation = WindowStartupLocation.CenterOwner; Background = Brushes.Black;
         Resources["TextBrush"] = Brushes.White; Resources["HoverBrush"] = ViewerTheme.Brush("#293138");
