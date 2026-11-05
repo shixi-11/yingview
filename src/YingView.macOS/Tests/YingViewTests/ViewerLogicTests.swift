@@ -46,3 +46,20 @@ final class ViewerLogicTests: XCTestCase {
         XCTAssertTrue(ViewerLogic.deletionResult(remainingCount: 0, deletedIndex: 0).isEmpty)
     }
 }
+
+
+final class PhotoSelectionTests: XCTestCase {
+    func testMultiSelectionAndRange() {
+        let urls = (1...4).map { URL(fileURLWithPath: "/photos/\($0).jpg") }
+        var state = PhotoSelectionState()
+        state.select(urls[0], ordered: urls)
+        state.select(urls[3], ordered: urls, toggle: true)
+        XCTAssertEqual(state.selected.count, 2)
+        state.select(urls[1], ordered: urls, range: true)
+        XCTAssertEqual(state.selected, Set(urls[1...3].map(PhotoSelectionState.identity)))
+        state.select(urls[1], ordered: urls, toggle: true)
+        XCTAssertFalse(state.selected.contains(PhotoSelectionState.identity(urls[1])))
+        state.retain([urls[3]])
+        XCTAssertEqual(state.selected, Set([PhotoSelectionState.identity(urls[3])]))
+    }
+}

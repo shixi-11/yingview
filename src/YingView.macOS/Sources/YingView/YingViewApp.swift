@@ -63,7 +63,8 @@ struct YingViewApp: App {
                 Button(Copy.t("显示/隐藏缩略图", "Toggle Thumbnails")) { model.showFilmstrip.toggle() }.keyboardShortcut("t")
                 Button(Copy.t("双图对照", "Compare Two Images")) { model.compare.toggle() }.keyboardShortcut("d")
                 Divider()
-                Button(Copy.t("移到废纸篓", "Move to Trash")) { model.trashFromKeyboard() }.keyboardShortcut(.delete, modifiers: [.command])
+                Button(Copy.t("选片", "Select photos")) { model.showSelection.toggle() }.keyboardShortcut("p", modifiers: [.command, .shift])
+                Button(Copy.t("移到废纸篓", "Move to Trash")) { model.trashFromKeyboard() }.keyboardShortcut(.delete, modifiers: [.command]).disabled(model.clientMode || model.photoBusy)
             }
         }
     }
@@ -110,11 +111,13 @@ struct ViewerWindow: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
+            if model.showSelection { PhotoSelectionView(model: model) } else {
             HStack(spacing: 1) {
                 canvas(image: model.image, url: model.current, message: model.errorText, loading: model.loading)
                 if model.compare, let second = model.secondURL { canvas(image: model.secondImage, url: second, message: model.secondError, loading: model.secondImage == nil && model.secondError == nil) }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
-            if model.showFilmstrip { filmstrip }
+            }
+            if model.showFilmstrip && !model.showSelection { filmstrip }
             HStack {
                 Text(model.files.isEmpty ? Copy.t("打开图片或文件夹", "Open an image or folder") : "\(model.index + 1) / \(model.files.count)")
                 Spacer()
@@ -133,6 +136,7 @@ struct ViewerWindow: View {
             control("chevron.left", Copy.t("上一张", "Previous")) { model.move(-1) }.disabled(model.index == 0)
             control("chevron.right", Copy.t("下一张", "Next")) { model.move(1) }.disabled(model.index + 1 >= model.files.count)
             Text(model.current?.lastPathComponent ?? Copy.brand).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            Button { model.showSelection.toggle() } label: { Label(Copy.t("选片", "Select photos"), systemImage: "square.grid.2x2") }
             control("arrow.up.left.and.arrow.down.right", Copy.t("完整显示", "Fit to Window")) { model.fit() }
             Button("100%") { model.perform(.actual) }.help(Copy.t("实际像素大小", "Actual pixel size"))
             control("minus.magnifyingglass", Copy.t("缩小", "Zoom Out")) { model.perform(.zoomOut) }
@@ -142,7 +146,7 @@ struct ViewerWindow: View {
             control("rectangle.split.2x1", Copy.t("双图对照", "Compare")) { model.compare.toggle() }
             control("arrow.clockwise", Copy.t("刷新", "Refresh")) { model.refresh() }
             control("slider.horizontal.3", Copy.t("外观", "Appearance")) { model.beginAppearanceEdit() }
-            control("trash", Copy.t("移到废纸篓", "Move to Trash")) { _ = model.trashCurrent() }.disabled(model.current == nil)
+            control("trash", Copy.t("移到废纸篓", "Move to Trash")) { model.trashFromKeyboard() }.disabled(model.clientMode || model.photoBusy || (model.showSelection ? model.selectedPhotos.isEmpty : model.current == nil))
         }.buttonStyle(.borderless).padding(.horizontal, 16).padding(.vertical, 12).background(.bar)
     }
     private func control(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {

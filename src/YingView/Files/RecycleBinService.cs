@@ -68,6 +68,22 @@ public static class RecycleBinService
         return completion.Task;
     }
 
+    public sealed record BatchResult(IReadOnlyList<string> Recycled, IReadOnlyDictionary<string, string> Failed, bool Cancelled);
+    public static async Task<BatchResult> RecycleManyAsync(IEnumerable<string> paths, IntPtr ownerHwnd)
+    {
+        // Validate the complete snapshot before moving the first file. Reuse the
+        // recycle-only sink for each operation; never fall back to permanent deletion.
+        var files = paths.Select(ValidateFilePath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var moved = new List<string>(); var failed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        bool cancelled = false;
+        foreach (var path in files)
+        {
+            try { if (await RecycleAsync(path, ownerHwnd)) moved.Add(path); else { cancelled = true; break; } }
+            catch (Exception error) { failed[path] = error.Message; }
+        }
+        return new(moved, failed, cancelled);
+    }
+
     private static string ValidateFilePath(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("A file path is required.", nameof(path));

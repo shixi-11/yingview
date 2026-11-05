@@ -127,6 +127,8 @@ public partial class MainWindow : Window
         ApplyCanvasBackground();
         Tip(FullscreenButton, T("全屏 / 退出全屏", "Enter / leave fullscreen") + " · F11");
         Tip(ZoomInButton, T("放大", "Zoom in") + " · +"); Tip(ZoomOutButton, T("缩小", "Zoom out") + " · −");
+        PhotoSelectionLabel.Text = T("选片", "Select photos");
+        Tip(PhotoSelectionButton, T("多选、收藏与客人选片 · Ctrl+Shift+P", "Select, favorite and client proofing · Ctrl+Shift+P"));
         Tip(StudioButton, T("自定义界面风格", "Customize appearance"));
         Tip(DeleteButton, T("移入回收站", "Move to Recycle Bin") + " · Delete / Del");
         Tip(FilmstripToggleButton, T("展开或收起缩略图", "Show or hide thumbnails") + " · T");
@@ -205,6 +207,7 @@ public partial class MainWindow : Window
         deleteItem.IsEnabled = _current is not null && !_loading && !_deleting && !_currentFileMissing;
         MoreMenu.Items.Add(deleteItem);
         MoreMenu.Items.Add(new Separator());
+        MoreMenu.Items.Add(Item(T("选片…", "Photo selection…") + "    Ctrl+Shift+P", () => PhotoSelectionClick(this, new RoutedEventArgs())));
         MoreMenu.Items.Add(Item(T("对照审阅…", "Compare & review…") + "    V", OpenReview));
         MoreMenu.Items.Add(Item(T("外观设置…", "Appearance…"), OpenStyleStudio));
         MoreMenu.Items.Add(Item(T("设为默认看图软件…", "Set as default image viewer…"), OpenDefaultSettings));
@@ -657,6 +660,7 @@ public partial class MainWindow : Window
     private void ApplyResponsiveToolbar()
     {
         if (ZoomLabel is null) return;
+        PhotoSelectionButton.Visibility = ActualWidth > 980 * Math.Max(1, _interfaceScale) ? Visibility.Visible : Visibility.Collapsed;
         var showZoom = ActualWidth > 900 * Math.Max(1, _interfaceScale);
         ZoomLabel.Visibility = ZoomInButton.Visibility = ZoomOutButton.Visibility = showZoom ? Visibility.Visible : Visibility.Collapsed;
         DetailsLabel.Visibility = ActualWidth > 860 ? Visibility.Visible : Visibility.Collapsed;
@@ -679,6 +683,22 @@ public partial class MainWindow : Window
         var studio = new StyleStudioWindow(_settings, ApplyTheme, ApplyInterfaceScale, ApplyCompactToolbar) { Owner = this };
         studio.ShowDialog();
         ApplyTheme(_settings.Theme); ApplyChrome(); BuildMenu();
+    }
+    private async void PhotoSelectionClick(object sender, RoutedEventArgs e)
+    {
+        if (_deleting || _loading) return;
+        if (_current is null || _files.Length == 0) { ShowToast(T("先打开图片或文件夹，再开始选片", "Open images or a folder to start selecting photos")); return; }
+        _slideshow.Stop();
+        var current = _current; var previousIndex = _index;
+        var picker = new Review.PhotoSelectionWindow(_files, current, IsChinese) { Owner = this };
+        picker.ShowDialog();
+        if (picker.RecycledFiles.Count == 0) return;
+        var remaining = _files.Except(picker.RecycledFiles, StringComparer.OrdinalIgnoreCase).ToArray();
+        if (remaining.Length == 0) { await OpenPaths([Path.GetDirectoryName(current)!]); return; }
+        var target = Array.FindIndex(remaining, p => string.Equals(p, current, StringComparison.OrdinalIgnoreCase));
+        if (target < 0) target = Math.Min(previousIndex, remaining.Length - 1);
+        await OpenPaths(remaining);
+        if (target != _index) await Navigate(target - _index);
     }
     private void OpenReview()
     {
@@ -791,6 +811,7 @@ public partial class MainWindow : Window
             CloseCanvasColor(false); e.Handled = true; return;
         }
         if (_canvasColorPicker?.IsKeyboardFocusWithin == true) return;
+        if (e.Key == Key.P && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) { PhotoSelectionClick(this, new RoutedEventArgs()); e.Handled = true; return; }
         // Preserve native keyboard handling and prevent accidental deletion while
         // focus is on toolbar/menu controls rather than the image canvas.
         if (MoreMenu.IsSubmenuOpen || Keyboard.FocusedElement is TextBox || e.OriginalSource is TextBox) return;

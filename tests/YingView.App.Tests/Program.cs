@@ -137,6 +137,7 @@ internal static class Program
             Pump(YingView.AppTests.UpdateAssertions.Run(Output));
             VerifyLayout(window);
             YingView.AppTests.BackgroundAssertions.Run(window, Output);
+            Pump(YingView.AppTests.PhotoSelectionAssertions.Run(Output));
             var originalBackground = settings.Background;
             window.Width = 1280; window.Height = 800;
             InvokeVoid(window, "SetCanvasBackground", "black");

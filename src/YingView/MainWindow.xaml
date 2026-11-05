@@ -22,6 +22,7 @@
           <Button x:Name="ZoomInButton" Content="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Click="ZoomInClick" Padding="8,7" ToolTip="Zoom in"/>
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button x:Name="PhotoSelectionButton" Click="PhotoSelectionClick" Padding="9,7"><TextBlock x:Name="PhotoSelectionLabel" Text="Select photos"/></Button>
           <Button x:Name="CanvasToggleButton" Click="CanvasToggleClick" Padding="9,7" ToolTip="Switch canvas background">
             <StackPanel Orientation="Horizontal"><Border x:Name="CanvasSwatch" Width="14" Height="14" CornerRadius="3" BorderThickness="1" BorderBrush="#8A9198" VerticalAlignment="Center"/><TextBlock x:Name="CanvasButtonLabel" Text="Background" Margin="6,0,0,0" VerticalAlignment="Center"/></StackPanel>
           </Button>

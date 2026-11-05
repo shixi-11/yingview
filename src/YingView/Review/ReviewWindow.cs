@@ -18,6 +18,8 @@ namespace YingView.Review;
 public sealed class ReviewWindow : Window
 {
     private readonly string[] _files;
+    private readonly PhotoSelectionStore? _selectionStore;
+    private readonly string _selectionList;
     private readonly bool _isZh;
     private readonly ComboBox[] _pickers = new ComboBox[2];
     private readonly ImageSurface[] _surfaces = new ImageSurface[2];
@@ -36,9 +38,9 @@ public sealed class ReviewWindow : Window
     private readonly bool[] _sideLoading = new bool[2];
     private bool _closed;
 
-    public ReviewWindow(string[] files, string current, bool isZh)
+    public ReviewWindow(string[] files, string current, bool isZh, PhotoSelectionStore? selectionStore = null, string selectionList = "favorites")
     {
-        _isZh = isZh;
+        _isZh = isZh; _selectionStore = selectionStore; _selectionList = selectionList;
         _backgroundNames = isZh ? ["深色", "浅色", "棋盘"] : ["Dark", "Light", "Checker"];
         _files = (files ?? []).Where(ImageLoader.Supports).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         if (_files.Length < 2) throw new ArgumentException(isZh ? "至少需要两个受支持的图片文件。" : "At least two supported image files are required.", nameof(files));
@@ -182,9 +184,9 @@ public sealed class ReviewWindow : Window
         leftStatus.Children.Add(decisionText); leftStatus.Children.Add(dimensions);
         status.Children.Add(leftStatus);
         var choices = new StackPanel { Orientation = Orientation.Horizontal };
-        var keep = MakeButton(T("保留", "Keep"), subtle: true);
+        var keep = MakeButton(_selectionStore is null ? T("保留", "Keep") : T("收藏", "Favorite"), subtle: true);
         keep.Click += (_, _) => SetMark(side, Keep);
-        var pending = MakeButton(T("待定", "Pending"), subtle: true);
+        var pending = MakeButton(_selectionStore is null ? T("待定", "Pending") : T("取消收藏", "Unfavorite"), subtle: true);
         pending.Click += (_, _) => SetMark(side, Pending);
         _decisionButtons[side][0] = keep; _decisionButtons[side][1] = pending;
         choices.Children.Add(keep); choices.Children.Add(pending);
@@ -271,7 +273,10 @@ public sealed class ReviewWindow : Window
                 if (!IsCurrentLoad(side, path, generation)) { doc.Dispose(); return; }
                 _surfaces[side].SetDocument(doc, ViewportFitMode.Contain);
                 _dimensions[side].Text = $"{doc.Width:N0} × {doc.Height:N0} px · {doc.Format}";
-                _marks.TryAdd(path, Pending);
+                var initialMark = Pending;
+                try { if (_selectionStore?.Read(_selectionList).Contains(path) == true) initialMark = Keep; }
+                catch { _dimensions[side].Text += T(" · 收藏清单暂不可用", " · Favorites unavailable"); }
+                _marks.TryAdd(path, initialMark);
                 _sideReady[side] = true;
                 _sideLoading[side] = false;
                 foreach (var button in _decisionButtons[side]) button.IsEnabled = true;
@@ -308,7 +313,10 @@ public sealed class ReviewWindow : Window
     private void SetMark(int side, string mark)
     {
         if (!_sideReady[side] || _pickers[side].SelectedIndex < 0) return;
-        _marks[_files[_pickers[side].SelectedIndex]] = mark;
+        var path = _files[_pickers[side].SelectedIndex];
+        try { _selectionStore?.Set(_selectionList, [path], mark == Keep); }
+        catch (Exception e) { MessageBox.Show(this, e.Message, T("收藏未保存", "Favorite not saved")); return; }
+        _marks[path] = mark;
         RefreshDecision(0); RefreshDecision(1);
     }
 
@@ -389,7 +397,7 @@ public sealed class ReviewWindow : Window
         var sb = new StringBuilder();
         sb.AppendLine(T("文件,标记", "File,Decision"));
         foreach (var (path, mark) in rows)
-            sb.Append(Csv(path)).Append(',').AppendLine(Csv(mark == Keep ? T("保留", "Keep") : T("待定", "Pending")));
+            sb.Append(Csv(_selectionStore is null ? path : Path.GetFileName(path))).Append(',').AppendLine(Csv(mark == Keep ? T("保留", "Keep") : T("待定", "Pending")));
         try
         {
             await File.WriteAllTextAsync(dialog.FileName, sb.ToString(), new UTF8Encoding(true));

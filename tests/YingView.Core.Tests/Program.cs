@@ -90,3 +90,23 @@ Check(Array.IndexOf(names, "photo02.png") < Array.IndexOf(names, "photo2.png"), 
 Check(Array.IndexOf(names, "photo999999999999999999999999999999.png") < Array.IndexOf(names, "photo1000000000000000000000000000000.png"), "huge digit runs sort numerically without overflow");
 
 Console.WriteLine("All YingView.Core assertions passed.");
+
+
+var photoSelection = new PhotoSelection();
+string[] photoFiles = ["one.jpg", "two.jpg", "three.jpg", "four.jpg"];
+photoSelection.Select("two.jpg", photoFiles);
+photoSelection.Select("four.jpg", photoFiles, toggle: true);
+Check(photoSelection.Ordered(photoFiles).SequenceEqual(new[] { "two.jpg", "four.jpg" }), "non-adjacent multi-selection");
+photoSelection.Select("four.jpg", photoFiles, toggle: true);
+Check(photoSelection.Selected.SetEquals(new[] { "two.jpg" }), "Ctrl-click can deselect a photo");
+photoSelection.Select("one.jpg", photoFiles, range: true);
+Check(photoSelection.Selected.Count == 4, "reverse Shift range uses the last clicked anchor");
+photoSelection.Select("three.jpg", photoFiles);
+Check(photoSelection.Selected.SetEquals(new[] { "three.jpg" }), "plain click clears earlier selections");
+photoSelection.Select("four.jpg", photoFiles, toggle: true, range: true);
+Check(photoSelection.Selected.SetEquals(new[] { "three.jpg", "four.jpg" }), "Ctrl-Shift merges a range");
+photoSelection.Retain(new[] { "four.jpg" });
+Check(photoSelection.Selected.SetEquals(new[] { "four.jpg" }), "refresh removes missing selections");
+photoSelection.Select("one.jpg", photoFiles, range: true);
+Check(photoSelection.Selected.SetEquals(new[] { "one.jpg" }), "missing anchors do not produce a stale range");
+Console.WriteLine("Photo selection assertions passed.");

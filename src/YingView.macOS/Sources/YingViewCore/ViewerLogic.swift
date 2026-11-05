@@ -32,3 +32,25 @@ public enum ViewerLogic {
         return (min(max(deletedIndex, 0), remainingCount - 1), false)
     }
 }
+
+
+public struct PhotoSelectionState: Equatable {
+    public private(set) var selected: Set<String> = []
+    public private(set) var anchor: String?
+    public init() {}
+    public static func identity(_ url: URL) -> String { url.standardizedFileURL.path }
+    public mutating func select(_ url: URL, ordered: [URL], toggle: Bool = false, range: Bool = false) {
+        let ids = ordered.map(Self.identity), key = Self.identity(url)
+        guard let index = ids.firstIndex(of: key) else { return }
+        if range, let anchor, let start = ids.firstIndex(of: anchor) {
+            if !toggle { selected.removeAll() }
+            selected.formUnion(ids[min(start,index)...max(start,index)])
+        } else {
+            if !toggle { selected.removeAll() }
+            if toggle && selected.contains(key) { selected.remove(key) } else { selected.insert(key) }
+            anchor = key
+        }
+    }
+    public mutating func replace(_ urls: [URL]) { selected = Set(urls.map(Self.identity)); anchor = urls.first.map(Self.identity) }
+    public mutating func retain(_ urls: [URL]) { let ids = Set(urls.map(Self.identity)); selected.formIntersection(ids); if let value = anchor, !ids.contains(value) { anchor = nil } }
+}
