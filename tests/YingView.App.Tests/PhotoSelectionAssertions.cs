@@ -46,12 +46,22 @@ internal static class PhotoSelectionAssertions
         });
         object Field(string name) => typeof(PhotoSelectionWindow).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
         void Invoke(string name, params object[] args) => typeof(PhotoSelectionWindow).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, args);
-        Check(!System.Windows.Input.InputMethod.GetIsInputMethodEnabled(window), "Photo selection shortcuts must not start IME text composition.");
+        using var inputSource = new HwndSource(new HwndSourceParameters("YingView.PhotoSelection.HiddenImeSource") { Width = 1, Height = 1, WindowStyle = 0 });
+        System.Windows.Input.KeyEventArgs ImeKey(Window target, System.Windows.Input.Key key)
+        {
+            var args = new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, inputSource, Environment.TickCount, key) { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent };
+            typeof(System.Windows.Input.KeyEventArgs).GetMethod("MarkImeProcessed", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(args, null);
+            Check(args.Key == System.Windows.Input.Key.ImeProcessed, "Fixture must simulate an IME-preprocessed key.");
+            target.RaiseEvent(args); return args;
+        }
         var preview = new PhotoPreviewWindow(first, false);
-        Check(!System.Windows.Input.InputMethod.GetIsInputMethodEnabled(preview), "Preview shortcuts must not start IME text composition."); preview.Close();
+        Check(ImeKey(preview, System.Windows.Input.Key.F).Handled, "Preview must handle Fit while Chinese IME is active."); preview.Close();
         var compare = new ReviewWindow([first, second], first, false);
-        Check(!System.Windows.Input.InputMethod.GetIsInputMethodEnabled(compare), "Comparison shortcuts must not start IME text composition."); compare.Close();
+        Check(ImeKey(compare, System.Windows.Input.Key.F).Handled, "Comparison must handle Fit while Chinese IME is active."); compare.Close();
         var selection = (PhotoSelection)Field("_selection");
+        selection.Replace([second]); Invoke("ApplySelection");
+        Check(ImeKey(window, System.Windows.Input.Key.P).Handled && store.Read("favorites").Contains(second), "IME-preprocessed P must favorite the selection.");
+        Check(ImeKey(window, System.Windows.Input.Key.U).Handled && !store.Read("favorites").Contains(second), "IME-preprocessed U must unfavorite the selection.");
         selection.Replace([first, third]); Invoke("ApplySelection");
         Check(((Button)Field("_compare")).IsEnabled, "Two non-adjacent selected photos must enable comparison.");
         await window.DeleteSelectedAsync(_ => false);

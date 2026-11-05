@@ -40,8 +40,6 @@ public sealed class ReviewWindow : Window
 
     public ReviewWindow(string[] files, string current, bool isZh, PhotoSelectionStore? selectionStore = null, string selectionList = "favorites")
     {
-        // These viewing windows have no text editor; letter shortcuts must bypass IME composition.
-        InputMethod.SetIsInputMethodEnabled(this, false);
         _isZh = isZh; _selectionStore = selectionStore; _selectionList = selectionList;
         _backgroundNames = isZh ? ["深色", "浅色", "棋盘"] : ["Dark", "Light", "Checker"];
         _files = (files ?? []).Where(ImageLoader.Supports).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -66,8 +64,9 @@ public sealed class ReviewWindow : Window
         Loaded += async (_, _) => await LoadPairAsync(start, second);
         PreviewKeyDown += (_, e) =>
         {
+            var key = e.Key == Key.ImeProcessed ? e.ImeProcessedKey : e.Key;
             if (e.OriginalSource is TextBox || Keyboard.FocusedElement is ComboBox { IsDropDownOpen: true }) return;
-            if (e.Key is System.Windows.Input.Key.F or System.Windows.Input.Key.D0 or System.Windows.Input.Key.NumPad0)
+            if (key is System.Windows.Input.Key.F or System.Windows.Input.Key.D0 or System.Windows.Input.Key.NumPad0)
             { FitBoth(); e.Handled = true; }
         };
         Closed += (_, _) =>

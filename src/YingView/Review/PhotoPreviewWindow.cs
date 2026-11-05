@@ -14,15 +14,13 @@ internal sealed class PhotoPreviewWindow : Window
     private bool _closed;
     internal PhotoPreviewWindow(string path, bool chinese)
     {
-        // These viewing windows have no text editor; letter shortcuts must bypass IME composition.
-        InputMethod.SetIsInputMethodEnabled(this, false);
         Title = Path.GetFileName(path); Width = 1080; Height = 760; MinWidth = 600; MinHeight = 420;
         WindowStartupLocation = WindowStartupLocation.CenterOwner; Background = Brushes.Black;
         Resources["TextBrush"] = Brushes.White; Resources["HoverBrush"] = ViewerTheme.Brush("#293138");
         var root = new DockPanel();
         var close = new Button { Content = chinese ? "返回选片 · Esc" : "Back to selection · Esc", HorizontalAlignment = HorizontalAlignment.Right };
         close.Click += (_, _) => Close(); DockPanel.SetDock(close, Dock.Top); root.Children.Add(close); root.Children.Add(_surface); Content = root;
-        PreviewKeyDown += (_, e) => { if (e.Key is Key.Escape or Key.Space) { Close(); e.Handled = true; } else if (e.Key == Key.F) { _surface.Fit(ViewportFitMode.Contain); e.Handled = true; } };
+        PreviewKeyDown += (_, e) => { var key = e.Key == Key.ImeProcessed ? e.ImeProcessedKey : e.Key; if (key is Key.Escape or Key.Space) { Close(); e.Handled = true; } else if (key == Key.F) { _surface.Fit(ViewportFitMode.Contain); e.Handled = true; } };
         Loaded += async (_, _) =>
         {
             try { var image = await Task.Run(() => ImageLoader.Load(path)); if (_closed) image.Dispose(); else _surface.SetDocument(image, ViewportFitMode.Contain); }

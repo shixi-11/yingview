@@ -49,8 +49,6 @@ public sealed class PhotoSelectionWindow : Window
     public PhotoSelectionWindow(string[] files, string current, bool chinese, PhotoSelectionStore? store = null,
         Func<IEnumerable<string>, IntPtr, Task<RecycleBinService.BatchResult>>? recycle = null)
     {
-        // These viewing windows have no text editor; letter shortcuts must bypass IME composition.
-        InputMethod.SetIsInputMethodEnabled(this, false);
         _zh = chinese; _store = store ?? new(); _recycle = recycle ?? RecycleBinService.RecycleManyAsync;
         _files = files.Where(ImageLoader.Supports).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         Title = T("选片 · 映窗", "Photo selection · YingView"); Width = 1120; Height = 800; MinWidth = 720; MinHeight = 520;
@@ -254,16 +252,17 @@ public sealed class PhotoSelectionWindow : Window
     }
     private void Keys(object sender, KeyEventArgs e)
     {
+        var key = e.Key == Key.ImeProcessed ? e.ImeProcessedKey : e.Key;
         if (e.OriginalSource is TextBox || Keyboard.FocusedElement is TextBox or ComboBox || _busy) return;
-        if (e.Key is Key.Space or Key.Enter && Keyboard.FocusedElement is Button or CheckBox) return;
-        if (e.Key == Key.O && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) OpenFolder();
-        else if (e.Key == Key.A && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) { _selection.Replace(Filtered); ApplySelection(); }
-        else if (e.Key == Key.Delete) _ = DeleteSelectedAsync();
-        else if (e.Key == Key.P) SaveFavorites(_selection.Selected, true);
-        else if (e.Key == Key.U) SaveFavorites(_selection.Selected, false);
-        else if (e.Key == Key.C) CompareSelected();
-        else if (e.Key == Key.Space) PreviewSelected();
-        else if (e.Key == Key.Escape) Close();
+        if (key is Key.Space or Key.Enter && Keyboard.FocusedElement is Button or CheckBox) return;
+        if (key == Key.O && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) OpenFolder();
+        else if (key == Key.A && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) { _selection.Replace(Filtered); ApplySelection(); }
+        else if (key == Key.Delete) _ = DeleteSelectedAsync();
+        else if (key == Key.P) SaveFavorites(_selection.Selected, true);
+        else if (key == Key.U) SaveFavorites(_selection.Selected, false);
+        else if (key == Key.C) CompareSelected();
+        else if (key == Key.Space) PreviewSelected();
+        else if (key == Key.Escape) Close();
         else return;
         e.Handled = true;
     }
