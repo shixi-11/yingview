@@ -64,7 +64,7 @@ struct YingViewApp: App {
                 Button(Copy.t("双图对照", "Compare Two Images")) { model.compare.toggle() }.keyboardShortcut("d")
                 Divider()
                 Button(Copy.t("选片", "Select photos")) { model.showSelection.toggle() }.keyboardShortcut("p", modifiers: [.command, .shift])
-                Button(Copy.t("移到废纸篓", "Move to Trash")) { model.trashFromKeyboard() }.keyboardShortcut(.delete, modifiers: [.command]).disabled(model.clientMode || model.photoBusy)
+                Button(Copy.t("移到废纸篓", "Move to Trash")) { model.trashFromKeyboard() }.keyboardShortcut(.delete, modifiers: [.command]).disabled(model.photoBusy)
             }
         }
     }
@@ -146,7 +146,7 @@ struct ViewerWindow: View {
             control("rectangle.split.2x1", Copy.t("双图对照", "Compare")) { model.compare.toggle() }
             control("arrow.clockwise", Copy.t("刷新", "Refresh")) { model.refresh() }
             control("slider.horizontal.3", Copy.t("外观", "Appearance")) { model.beginAppearanceEdit() }
-            control("trash", Copy.t("移到废纸篓", "Move to Trash")) { model.trashFromKeyboard() }.disabled(model.clientMode || model.photoBusy || (model.showSelection ? model.selectedPhotos.isEmpty : model.current == nil))
+            control("trash", Copy.t("移到废纸篓", "Move to Trash")) { model.trashFromKeyboard() }.disabled(model.photoBusy || (model.showSelection ? model.selectedPhotos.isEmpty : model.current == nil))
         }.buttonStyle(.borderless).padding(.horizontal, 16).padding(.vertical, 12).background(.bar)
     }
     private func control(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {

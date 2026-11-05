@@ -24,11 +24,11 @@ The palette is embedded in the main window, so it does not cover the image with 
 
 ### Photo selection for photographers and clients
 
-Click **Select photos**, or press **Ctrl+Shift+P**, to open the contact sheet. **Ctrl-click** selects individual photos; **Shift-click** selects a range. Select exactly two images and choose **Compare two** for side-by-side inspection with synchronized zoom and panning. Double-click a photo for a whole-image preview; close the preview to return to the grid.
+Click **Select photos**, or press **Ctrl+Shift+P**, to open the contact sheet. Choose **Open folder** to load a whole set, or drop a folder or several images onto the grid. **Ctrl-click** selects individual photos; **Shift-click** selects a range. Select exactly two images and choose **Compare two** for side-by-side inspection with synchronized zoom and panning. Double-click a photo for a whole-image preview; close the preview to return to the grid.
 
-Favorites are saved locally between sessions. Filter to favorites or export their filenames as a TXT list. Photographer mode can move multiple selected files to the Recycle Bin after one confirmation; failed files remain in the selection, with no permanent-delete fallback. The grid shows up to 120 thumbnails per page and supports selections across pages.
+Favorites are saved locally between sessions. Filter to favorites or export their filenames as a TXT list. You can move multiple selected files to the Recycle Bin after one confirmation; failed files remain in the selection, with no permanent-delete fallback. The grid shows up to 120 thumbnails per page and supports selections across pages.
 
-Switch to **Client selection** and enter a client name to keep a separate favorite list for each client. Source-file deletion is disabled in that mode. Lists stay on the current device: there is no hosted gallery, remote proofing link or cross-device sync. Give clients photo copies and use the exported filename list for handoff. This release does not include a dedicated RAW workflow, star ratings, photo editing or cloud delivery.
+The same selection interface works for photographers and clients. Favorites stay on the current device; export the filename list for handoff. This release does not include a dedicated RAW workflow, star ratings, photo editing or cloud delivery.
 
 ### Formats and practical limits
 
@@ -48,7 +48,7 @@ Updates are checked at most once per day after the first window appears, if enab
 
 ## macOS preview
 
-The repository also includes a native macOS 13+ client built with SwiftUI, AppKit and ImageIO. It supports image/folder opening, fit and physical-pixel views, browsing, zoom, rotation, Trash, thumbnails, appearance settings a photo selection grid, Cmd/Shift multi-selection, separate client favorite lists, batch Trash and comparison of any two selected photos. It does not yet include every Windows feature listed above.
+The repository also includes a native macOS 13+ client built with SwiftUI, AppKit and ImageIO. It supports image/folder opening, fit and physical-pixel views, browsing, zoom, rotation, Trash, thumbnails, appearance settings, a photo selection grid, Cmd/Shift multi-selection, batch Trash and comparison of any two selected photos. It does not yet include every Windows feature listed above.
 
 The build script produces separate Chinese and English apps for Apple silicon and Intel. Developer ID signing, notarization and Mac App Store submission are pending. Check the actual release assets before downloading.
 

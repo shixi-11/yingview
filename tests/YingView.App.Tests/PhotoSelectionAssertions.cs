@@ -51,14 +51,6 @@ internal static class PhotoSelectionAssertions
         Check(((Button)Field("_compare")).IsEnabled, "Two non-adjacent selected photos must enable comparison.");
         await window.DeleteSelectedAsync(_ => false);
         Check(recycleCalls == 0 && window.RecycledFiles.Count == 0, "Cancelling batch confirmation must perform no file operation.");
-        ((ComboBox)Field("_role")).SelectedIndex = 1;
-        selection.Replace([first, third]); Invoke("ApplySelection");
-        await window.DeleteSelectedAsync(_ => true);
-        Check(recycleCalls == 0 && !((Button)Field("_trash")).IsEnabled, "Client mode must disable and guard deletion.");
-        ((TextBox)Field("_clientName")).Text = "Customer A";
-        Invoke("SaveFavorites", new[] { second }, true);
-        Check(store.Read("client:Customer A").Contains(second) && store.Read("favorites").SetEquals([first, third]), "Client picks must not overwrite photographer favorites.");
-        ((ComboBox)Field("_role")).SelectedIndex = 0;
         selection.Replace([first, third]); Invoke("ApplySelection");
         await window.DeleteSelectedAsync(_ => true);
         Check(recycleCalls == 1 && window.RecycledFiles.SequenceEqual([first]) && selection.Selected.Contains(third), "Partial batch failure must remove only successful files and retain failed selections.");
@@ -82,11 +74,18 @@ internal static class PhotoSelectionAssertions
         remaining = (string[])typeof(MainWindow).GetField("_files", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(viewer)!;
         Check(remaining.Length == 0, "Removing the last selected image must show an empty viewer without scanning its folder.");
         viewer.Close();
+        var importer = new PhotoSelectionWindow([], "", false, store);
+        Check(importer.CurrentFiles.Count == 0, "Selection can start before opening a photo.");
+        await importer.ImportPathsAsync([folder]);
+        Check(importer.ScopeChanged && importer.CurrentFiles.SequenceEqual([first, second, third]), "Opening a folder must load all supported images in natural order.");
+        await importer.ImportPathsAsync([third, first]);
+        Check(importer.CurrentFiles.SequenceEqual([first, third]), "Dropped explicit files must preserve their scope.");
+        importer.Close();
         // Validate every target before invoking even the first Shell operation.
         var disposable = Path.Combine(folder, "validation-only.txt"); File.WriteAllText(disposable, "fixture");
         bool batchRejected = false;
         try { await RecycleBinService.RecycleManyAsync([disposable, folder], IntPtr.Zero); } catch (ArgumentException) { batchRejected = true; }
         Check(batchRejected && File.Exists(disposable), "Invalid later batch targets must stop deletion before the first file.");
-        Console.WriteLine("Photo selection persistence, client safeguards and batch outcome assertions passed.");
+        Console.WriteLine("Photo selection persistence, folder import safeguards and batch outcome assertions passed.");
     }
 }

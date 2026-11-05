@@ -20,7 +20,7 @@ Choose an appearance preset, adjust text size and colors, use compact controls, 
 
 YingView is free and open source under AGPLv3. Images are processed locally, with no ads or usage analytics. English and Simplified Chinese clients are available. Optional donations support maintenance and do not unlock features.
 
-Use the photo selection grid to select multiple images, save favorites, move a batch to the Recycle Bin and compare any two selected photos. Keep separate local client lists and export favorite filenames for handoff. Client mode disables source-file deletion. Photos stay local; hosted galleries and cross-device sync are not included.
+Use the photo selection grid to select multiple images, save favorites, move a batch to the Recycle Bin and compare any two selected photos. Open or drop a photo folder and export favorite filenames for handoff. Photos stay local; hosted galleries and cross-device sync are not included.
 
 ## Key features
 

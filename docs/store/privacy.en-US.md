@@ -12,7 +12,7 @@ When the user invokes **Delete** or **Del** for the current image, YingView asks
 
 When an unhandled application error occurs, YingView may write diagnostic details to `%LOCALAPPDATA%\YingView\errors.log`. These details can include file paths or other context included in an exception. The files remain on the device and are not sent to YingView or a server by the app. The user can remove local YingView data through Windows File Explorer.
 
-Photo selection stores favorite images’ full local paths and optional client names in `%LOCALAPPDATA%\YingView\photo-selections.json`. Records remain until unfavorited or the local file is removed; moving or renaming images does not migrate their marks. Users can export a TXT list containing filenames only. Batch deletion requires one confirmation and moves successfully processed files to the system Recycle Bin; failed files remain. Client selection mode disables source-file deletion. There is no online sharing or cross-device sync.
+Photo selection stores favorite images’ full local paths in `%LOCALAPPDATA%\YingView\photo-selections.json`. Records remain until unfavorited or the local file is removed; moving or renaming images does not migrate their marks. Users can export a TXT list containing filenames only. Batch deletion requires one confirmation and moves successfully processed files to the system Recycle Bin; failed files remain. There is no online sharing or cross-device sync.
 
 ## Data sharing and retention
 

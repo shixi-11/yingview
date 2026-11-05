@@ -76,8 +76,6 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
     @Published var showFilmstrip = false
     @Published var showSelection = false
     @Published var photoSelection = PhotoSelectionState()
-    @Published var clientMode = false
-    @Published var clientName = ""
     @Published var favoritesOnly = false
     @Published var photoBusy = false
     @Published var photoStatus: String?
@@ -95,6 +93,7 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
     private var loadTask: Task<Void, Never>?
     private var comparisonTask: Task<Void, Never>?
     private var comparisonGeneration = 0
+    var selectionLocation: String { folder?.path ?? "" }
     private var folder: URL?
     private var explicitSelection = false
     var current: URL? { files.indices.contains(index) ? files[index] : nil }
@@ -156,16 +155,30 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
         let panel = NSOpenPanel(); panel.allowedContentTypes = ImageDecoder.types; panel.allowsMultipleSelection = true
         if panel.runModal() == .OK { openURLs(panel.urls) }
     }
+    nonisolated private static func isRegularImage(_ url: URL) -> Bool {
+        ImageDecoder.extensions.contains(url.pathExtension.lowercased()) &&
+            (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+    }
     func openURLs(_ urls: [URL]) {
-        guard !photoBusy else { return }
-        photoSelection.replace([]); comparisonURL = nil; compare = false;
-        guard let first = urls.first else { return }
-        if urls.count == 1 { open(first) } else { explicitSelection = true; folder = nil; files = ViewerLogic.naturalSort(urls); select(0) }
+        guard !photoBusy, let first = urls.first else { return }
+        do {
+            if urls.count == 1, (try? first.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                favoritesOnly = false; open(first); return
+            }
+            var seen = Set<String>()
+            let candidates = try urls.flatMap { url -> [URL] in
+                (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true ? try scan(url) : [url]
+            }.map(\.standardizedFileURL).filter { Self.isRegularImage($0) && seen.insert(PhotoSelectionState.identity($0)).inserted }
+            guard !candidates.isEmpty else { photoStatus = Copy.t("没有找到支持的图片。", "No supported images found."); return }
+            favoritesOnly = false; photoSelection.replace([]); comparisonURL = nil; compare = false
+            if urls.count == 1 { open(candidates[0]) }
+            else { explicitSelection = true; folder = nil; files = ViewerLogic.naturalSort(candidates); select(0) }
+        } catch { photoStatus = Copy.t("无法读取文件夹，原照片列表已保留。", "Could not read the folder. The previous photo list was kept.") }
     }
     func chooseFolder() {
         guard !photoBusy else { return }
         let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false
-        if panel.runModal() == .OK, let url = panel.url { open(url) }
+        if panel.runModal() == .OK, let url = panel.url { favoritesOnly = false; open(url) }
     }
     func select(_ position: Int) {
         loadTask?.cancel(); revision += 1
@@ -203,7 +216,7 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
     }
     func move(_ delta: Int) { if files.indices.contains(index + delta) { select(index + delta) } }
     @discardableResult func trashCurrent() -> Bool {
-        guard !clientMode, !photoBusy, let url = current else { return false }
+        guard !photoBusy, let url = current, Self.isRegularImage(url) else { return false }
         do {
             try FileManager.default.trashItem(at: url, resultingItemURL: nil)
             files.remove(at: index)
@@ -212,7 +225,7 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
         } catch { errorText = Copy.t("未能移入废纸篓。请检查文件是否仍在原位置，以及访问权限。", "Could not move this image to Trash. Check its location and access permissions."); return false }
     }
     func trashFromKeyboard() {
-        guard !clientMode, !(NSApp.keyWindow?.firstResponder is NSTextView), NSApp.keyWindow?.attachedSheet == nil else { return }
+        guard !(NSApp.keyWindow?.firstResponder is NSTextView), NSApp.keyWindow?.attachedSheet == nil else { return }
         if showSelection { trashSelection() } else { _ = trashCurrent() }
     }
     func beginAppearanceEdit() { if appearanceBackup == nil { appearanceBackup = (accent, textSize, preset) }; isEditingAppearance = true }
@@ -232,7 +245,7 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
             errorText = failures == 0 ? Copy.t("默认图片查看器已设置。", "Default image viewer updated.") : Copy.t("部分格式未能设置。可在 Finder 的“显示简介”中选择“打开方式”，再点“全部更改”。", "Some formats were not updated. In Finder, use Get Info → Open with → Change All.")
         }
     }
-    var photoListKey: String { clientMode ? "client:" + clientName.trimmingCharacters(in: .whitespacesAndNewlines).precomposedStringWithCanonicalMapping : "favorites" }
+    let photoListKey = "favorites"
     var favoriteIDs: Set<String> {
         let key = photoListKey
         if favoriteCacheKey != key { favoriteCache = Set(photoLists[key] ?? []); favoriteCacheKey = key }
@@ -264,7 +277,7 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
     func previewPhoto(_ url: URL) { guard !photoBusy, let i = files.firstIndex(of: url) else { return }; compare = false; comparisonURL = nil; select(i); showSelection = false }
     func trashSelection() {
         let targets = selectedPhotos
-        guard !clientMode, !photoBusy, !targets.isEmpty, !(NSApp.keyWindow?.firstResponder is NSTextView) else { return }
+        guard !photoBusy, !targets.isEmpty, !(NSApp.keyWindow?.firstResponder is NSTextView) else { return }
         let alert = NSAlert(); alert.messageText = Copy.t("将所选 \(targets.count) 张照片移到废纸篓？", "Move \(targets.count) selected photos to Trash?")
         alert.informativeText = Copy.t("可以从系统废纸篓恢复。", "They can be restored from the system Trash.")
         alert.addButton(withTitle: Copy.t("取消", "Cancel")); alert.addButton(withTitle: Copy.t("移到废纸篓", "Move to Trash"))
@@ -273,7 +286,7 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
         Task {
             let result = await Task.detached { () -> ([URL], Int) in
                 var moved: [URL] = []; var failed = 0
-                for url in targets { do { try FileManager.default.trashItem(at: url, resultingItemURL: nil); moved.append(url) } catch { failed += 1 } }
+                for url in targets { guard Self.isRegularImage(url) else { failed += 1; continue }; do { try FileManager.default.trashItem(at: url, resultingItemURL: nil); moved.append(url) } catch { failed += 1 } }
                 return (moved, failed)
             }.value
             let old = current; let oldIndex = index

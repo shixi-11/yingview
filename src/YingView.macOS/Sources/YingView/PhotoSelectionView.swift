@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import SwiftUI
 import YingViewCore
 
@@ -10,16 +11,10 @@ struct PhotoSelectionView: View {
             HStack {
                 Text(Copy.t("选片", "Photo selection")).font(.title2.bold())
                 Spacer()
-                Picker(Copy.t("模式", "Mode"), selection: $model.clientMode) {
-                    Text(Copy.t("摄影师", "Photographer")).tag(false)
-                    Text(Copy.t("客人选片", "Client selection")).tag(true)
-                }.frame(width: 220)
-            }
-            HStack {
-                TextField(Copy.t("客户名（选填）", "Client name (optional)"), text: $model.clientName).disabled(!model.clientMode).frame(maxWidth: 240)
+                Button(Copy.t("打开文件夹…", "Open folder…")) { model.chooseFolder() }
                 Toggle(Copy.t("只看收藏", "Favorites only"), isOn: $model.favoritesOnly)
-                Spacer()
             }
+            if !model.selectionLocation.isEmpty { Text(model.selectionLocation).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).help(model.selectionLocation) }
             HStack {
                 Button(Copy.t("全选", "Select all")) { model.selectAllPhotos() }.keyboardShortcut("a", modifiers: .command)
                 Button(Copy.t("清空选择", "Clear")) { model.photoSelection.replace([]) }
@@ -29,7 +24,7 @@ struct PhotoSelectionView: View {
             }.controlSize(.small)
             HStack {
                 Button(Copy.t("对比两张", "Compare two")) { model.compareSelectedPhotos() }.disabled(model.selectedPhotos.count != 2)
-                Button(Copy.t("移到废纸篓", "Move to Trash")) { model.trashSelection() }.disabled(model.clientMode || model.selectedPhotos.isEmpty)
+                Button(Copy.t("移到废纸篓", "Move to Trash")) { model.trashSelection() }.disabled(model.selectedPhotos.isEmpty)
                 Spacer()
                 Button(Copy.t("导出收藏…", "Export favorites…")) { model.exportPhotoFavorites() }.disabled(!model.files.contains { model.favoriteIDs.contains(PhotoSelectionState.identity($0)) })
             }.controlSize(.small)
@@ -52,11 +47,25 @@ struct PhotoSelectionView: View {
                 }.padding(3)
             }.onDeleteCommand { model.trashSelection() }
             Text(Copy.t("已选 \(model.selectedPhotos.count) 张 · 收藏 \(model.files.filter { model.favoriteIDs.contains(PhotoSelectionState.identity($0)) }.count) 张", "\(model.selectedPhotos.count) selected · \(model.files.filter { model.favoriteIDs.contains(PhotoSelectionState.identity($0)) }.count) favorites")).font(.caption)
-            Text(model.photoStatus ?? (model.clientMode ? Copy.t("客人清单单独保存在本机；此模式不能删除原片。", "Client lists are saved separately on this Mac. Deletion of originals is disabled.") : Copy.t("⌘ 多选 · Shift 连选 · 双击大图；收藏不改动原片。", "⌘ multi-select · Shift range · Double-click to preview. Favorites do not change originals."))).font(.caption).foregroundStyle(.secondary)
+            Text(model.photoStatus ?? Copy.t("⌘ 多选 · Shift 连选 · 双击大图；收藏不改动原片。", "⌘ multi-select · Shift range · Double-click to preview. Favorites do not change originals.")).font(.caption).foregroundStyle(.secondary)
         }
         .padding(16).disabled(model.photoBusy)
-        .onChange(of: model.clientMode) { _ in model.photoSelection.replace([]); model.photoStatus = nil }
-        .onChange(of: model.clientName) { _ in model.photoSelection.replace([]) }
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            let urls = providers.compactMap { provider -> NSItemProvider? in provider.hasItemConformingToTypeIdentifier("public.file-url") ? provider : nil }
+            guard !urls.isEmpty else { return false }
+            // Process all providers together to keep the selected scope deterministic.
+            Task { @MainActor in
+                var loaded: [URL] = []
+                for provider in urls {
+                    let data: Data? = await withCheckedContinuation { continuation in
+                        provider.loadDataRepresentation(forTypeIdentifier: "public.file-url") { data, _ in continuation.resume(returning: data) }
+                    }
+                    if let data, let url = URL(dataRepresentation: data, relativeTo: nil) { loaded.append(url) }
+                }
+                if !loaded.isEmpty { model.openURLs(loaded) }
+            }
+            return true
+        }
         .onChange(of: model.favoritesOnly) { _ in model.photoSelection.retain(model.selectionFiles) }
     }
 }

@@ -128,7 +128,7 @@ public partial class MainWindow : Window
         Tip(FullscreenButton, T("全屏 / 退出全屏", "Enter / leave fullscreen") + " · F11");
         Tip(ZoomInButton, T("放大", "Zoom in") + " · +"); Tip(ZoomOutButton, T("缩小", "Zoom out") + " · −");
         PhotoSelectionLabel.Text = T("选片", "Select photos");
-        Tip(PhotoSelectionButton, T("多选、收藏与客人选片 · Ctrl+Shift+P", "Select, favorite and client proofing · Ctrl+Shift+P"));
+        Tip(PhotoSelectionButton, T("打开文件夹、多选、收藏与对比 · Ctrl+Shift+P", "Open folders, select, favorite and compare · Ctrl+Shift+P"));
         Tip(StudioButton, T("自定义界面风格", "Customize appearance"));
         Tip(DeleteButton, T("移入回收站", "Move to Recycle Bin") + " · Delete / Del");
         Tip(FilmstripToggleButton, T("展开或收起缩略图", "Show or hide thumbnails") + " · T");
@@ -687,12 +687,12 @@ public partial class MainWindow : Window
     private async void PhotoSelectionClick(object sender, RoutedEventArgs e)
     {
         if (_deleting || _loading) return;
-        if (_current is null || _files.Length == 0) { ShowToast(T("先打开图片或文件夹，再开始选片", "Open images or a folder to start selecting photos")); return; }
         _slideshow.Stop();
-        var current = _current; var previousIndex = _index;
+        var current = _current ?? ""; var previousIndex = _index;
         var picker = new Review.PhotoSelectionWindow(_files, current, IsChinese) { Owner = this };
         picker.ShowDialog();
-        if (picker.RecycledFiles.Count == 0) return;
+        if (picker.RecycledFiles.Count == 0 && !picker.ScopeChanged) return;
+        if (picker.ScopeChanged) { _files = picker.CurrentFiles.ToArray(); current = _files.FirstOrDefault() ?? ""; previousIndex = 0; }
         await ApplyRecycledSelectionAsync(picker.RecycledFiles, current, previousIndex);
     }
     internal async Task ApplyRecycledSelectionAsync(IEnumerable<string> recycled, string current, int previousIndex)
@@ -703,7 +703,7 @@ public partial class MainWindow : Window
         _settings.RecentFiles.RemoveAll(removed.Contains);
         _files = _files.Where(p => !removed.Contains(p)).ToArray();
         if (_files.Length == 0)
-            ShowEmptyState(T("照片已移入回收站", "Photos moved to Recycle Bin"), T("可以从系统回收站恢复，或打开其他照片。", "Restore them from the system Recycle Bin, or open other photos."));
+            ShowEmptyState(T("没有可显示的照片", "No photos to display"), T("打开或拖入其他照片文件夹。", "Open or drop another photo folder."));
         else
         {
             _index = Array.FindIndex(_files, p => string.Equals(p, current, StringComparison.OrdinalIgnoreCase));

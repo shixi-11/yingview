@@ -28,17 +28,20 @@ public sealed class PhotoSelectionWindow : Window
     private readonly Func<IEnumerable<string>, IntPtr, Task<RecycleBinService.BatchResult>> _recycle;
     private readonly ObservableCollection<Row> _rows = [];
     private readonly ListBox _grid = new() { SelectionMode = SelectionMode.Extended, Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
-    private readonly ComboBox _role = new() { Width = 152, Margin = new Thickness(0, 0, 8, 0) };
-    private readonly TextBox _clientName = new() { Width = 160, MaxLength = 80, Padding = new Thickness(8, 5, 8, 5), IsEnabled = false };
     private readonly CheckBox _onlyFavorites = new() { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
     private readonly TextBlock _count = new() { VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightGray, Margin = new Thickness(0, 6, 0, 0) };
     private readonly Button _compare, _preview, _favorite, _unfavorite, _trash, _export, _previous, _next;
     private HashSet<string> _favorites = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _recycled = new(StringComparer.OrdinalIgnoreCase);
-    private bool _updating, _busy, _closed, _client;
+    private bool _updating, _busy, _closed;
     private int _page, _generation;
-    private string ListKey => _client ? "client:" + _clientName.Text.Trim().Normalize() : "favorites";
+    private const string ListKey = "favorites";
+    private readonly TextBlock _folder = new() { TextTrimming = TextTrimming.CharacterEllipsis, Foreground = Brushes.LightGray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) };
+    private readonly TextBlock _empty = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = 18, Foreground = Brushes.LightGray, TextAlignment = TextAlignment.Center };
+    private readonly Button _openFolder;
+    public bool ScopeChanged { get; private set; }
+    public IReadOnlyList<string> CurrentFiles => _files;
     public IReadOnlyCollection<string> RecycledFiles => _recycled;
     private string T(string zh, string en) => _zh ? zh : en;
     private string[] Filtered => _files.Where(p => _onlyFavorites.IsChecked != true || _favorites.Contains(p)).ToArray();
@@ -52,7 +55,6 @@ public sealed class PhotoSelectionWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = ViewerTheme.Brush("#111417"); Foreground = Brushes.White;
         FontFamily = new FontFamily("Segoe UI, Microsoft YaHei UI"); FontSize = 13;
-        _clientName.Background = ViewerTheme.Brush("#20262B"); _clientName.Foreground = Brushes.White;
         Resources["BarBrush"] = ViewerTheme.Brush("#1B2025"); Resources["LineBrush"] = ViewerTheme.Brush("#333A41");
         Resources["TextBrush"] = Brushes.White; Resources["MutedBrush"] = Brushes.LightGray;
         Resources["HoverBrush"] = ViewerTheme.Brush("#303A3E"); Resources["PressedBrush"] = ViewerTheme.Brush("#202824");
@@ -62,12 +64,13 @@ public sealed class PhotoSelectionWindow : Window
         root.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) }); root.RowDefinitions.Add(new() { Height = GridLength.Auto });
         var heading = new StackPanel();
         heading.Children.Add(new TextBlock { Text = T("选片", "Photo selection"), FontSize = 22, FontWeight = FontWeights.SemiBold });
-        var options = new WrapPanel { Margin = new Thickness(0, 12, 0, 10) };
-        _role.ItemsSource = new[] { T("摄影师", "Photographer"), T("客人选片", "Client selection") }; _role.SelectedIndex = 0;
-        options.Children.Add(_role);
-        options.Children.Add(new TextBlock { Text = T("客户名（选填）", "Client name (optional)"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
-        options.Children.Add(_clientName); _onlyFavorites.Content = T("只看收藏", "Favorites only"); options.Children.Add(_onlyFavorites);
-        heading.Children.Add(options); root.Children.Add(heading);
+        var options = new DockPanel { Margin = new Thickness(0, 12, 0, 10) };
+        _openFolder = Action(T("打开文件夹…", "Open folder…"), OpenFolder);
+        _openFolder.Background = ViewerTheme.Brush("#2B3944"); _openFolder.Foreground = Brushes.White;
+        DockPanel.SetDock(_openFolder, Dock.Left); options.Children.Add(_openFolder);
+        _onlyFavorites.Content = T("只看收藏", "Favorites only"); DockPanel.SetDock(_onlyFavorites, Dock.Right); options.Children.Add(_onlyFavorites);
+        options.Children.Add(_folder); heading.Children.Add(options); root.Children.Add(heading);
+        _empty.Text = T("打开或拖入文件夹，开始选片", "Open or drop a folder to start selecting photos");
         var tools = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
         tools.Children.Add(Action(T("全选", "Select all"), () => { _selection.Replace(Filtered); ApplySelection(); }));
         tools.Children.Add(Action(T("清空选择", "Clear selection"), () => { _selection.Replace([]); ApplySelection(); }));
@@ -92,17 +95,19 @@ public sealed class PhotoSelectionWindow : Window
         _grid.ItemContainerStyle = style;
         _grid.PreviewMouseLeftButtonDown += GridMouseDown;
         _grid.SelectionChanged += (_, _) => { if (!_updating) { var visibleSelection = _grid.SelectedItems.Cast<Row>().Select(r => r.Path).ToArray(); var chosen = Keyboard.Modifiers.HasFlag(ModifierKeys.Control) ? _selection.Selected.Except(_rows.Select(r => r.Path), StringComparer.OrdinalIgnoreCase).Concat(visibleSelection).ToArray() : visibleSelection; _selection.Replace(chosen); UpdateActions(); } };
-        Grid.SetRow(_grid, 2); root.Children.Add(_grid);
+        var content = new Grid(); content.Children.Add(_grid); content.Children.Add(_empty);
+        Grid.SetRow(content, 2); root.Children.Add(content);
         var footer = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
         var paging = new DockPanel(); var pages = new StackPanel { Orientation = Orientation.Horizontal };
         _previous = Action("‹", () => { _page--; RenderPage(); }); _next = Action("›", () => { _page++; RenderPage(); }); pages.Children.Add(_previous); pages.Children.Add(_next);
         DockPanel.SetDock(pages, Dock.Right); paging.Children.Add(pages); paging.Children.Add(_count); footer.Children.Add(paging);
         footer.Children.Add(new TextBlock { Text = T("Ctrl 多选 · Shift 连选 · Ctrl+A 全选 · 空格大图 · C 对比 · P 收藏 · U 取消收藏", "Ctrl multi-select · Shift range · Ctrl+A select all · Space preview · C compare · P favorite · U unfavorite"), TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightGray, FontSize = 11, Margin = new Thickness(0, 5, 0, 0) });
         footer.Children.Add(_status); Grid.SetRow(footer, 3); root.Children.Add(footer); Content = root;
-        _role.SelectionChanged += (_, _) => { _client = _role.SelectedIndex == 1; _clientName.IsEnabled = _client; ReloadList(); };
-        _clientName.TextChanged += (_, _) => { if (_client) ReloadList(); };
         _onlyFavorites.Checked += (_, _) => { _page = 0; _selection.Retain(Filtered); RenderPage(); };
         _onlyFavorites.Unchecked += (_, _) => { _page = 0; RenderPage(); };
+        AllowDrop = true;
+        DragOver += (_, e) => { e.Effects = !_busy && e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
+        Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] paths) await ImportPathsAsync(paths); e.Handled = true; };
         PreviewKeyDown += Keys;
         Closing += (_, e) => { if (_busy) e.Cancel = true; };
         Closed += (_, _) => { _closed = true; _generation++; };
@@ -114,9 +119,34 @@ public sealed class PhotoSelectionWindow : Window
         var button = new Button { Content = text, Padding = new Thickness(9, 7, 9, 7), Margin = new Thickness(0, 0, 5, 4) };
         button.Click += (_, _) => run(); return button;
     }
+    private async void OpenFolder()
+    {
+        if (_busy) return;
+        var dialog = new OpenFolderDialog { Title = T("选择照片文件夹", "Choose a photo folder") };
+        if (dialog.ShowDialog(this) == true) await ImportPathsAsync([dialog.FolderName]);
+    }
+    internal async Task ImportPathsAsync(string[] paths)
+    {
+        if (_busy || paths.Length == 0) return;
+        _busy = true; UpdateActions();
+        _status.Text = T("正在读取照片…", "Reading photos…");
+        try
+        {
+            var files = await Task.Run(() => paths.SelectMany(path => Directory.Exists(path) ? Directory.EnumerateFiles(path) : new[] { path })
+                .Where(File.Exists).Where(ImageLoader.Supports).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(Path.GetFileName, NaturalStringComparer.Ordinal).ToArray());
+            if (_closed) return;
+            _files.Clear(); _files.AddRange(files); ScopeChanged = true;
+            _folder.Text = paths.Length == 1 && Directory.Exists(paths[0]) ? Path.GetFullPath(paths[0]) : T("所选照片", "Selected photos"); _folder.ToolTip = _folder.Text;
+            _onlyFavorites.IsChecked = false; _selection.Replace([]); _page = 0; RenderPage();
+            _status.Text = files.Length == 0 ? T("此文件夹没有支持的图片。", "This folder contains no supported images.") : T("Ctrl 多选，Shift 连选；选两张即可对比。", "Ctrl-click to select, Shift-click for a range. Select two to compare.");
+        }
+        catch (Exception e) { _status.Text = T("无法读取文件夹：", "Could not read folder: ") + e.Message; }
+        finally { _busy = false; UpdateActions(); }
+    }
     private void ReloadList()
     {
-        try { _favorites = _store.Read(ListKey); _status.Text = _client ? T("客人清单单独保存；此模式不能删除原片。", "Client selections are saved separately. Original-file deletion is disabled.") : T("收藏保存在本机，不改动原片；可导出文件名清单。", "Favorites stay on this computer without changing originals. Export the filenames when ready."); }
+        try { _favorites = _store.Read(ListKey); _status.Text = T("收藏保存在本机，不改动原片；可导出文件名清单。", "Favorites stay on this computer without changing originals. Export the filenames when ready."); }
         catch (Exception e) { _favorites = []; _status.Text = T("无法读取收藏清单：", "Could not read favorites: ") + e.Message; }
         _selection.Replace([]); _page = 0; RenderPage();
     }
@@ -167,9 +197,10 @@ public sealed class PhotoSelectionWindow : Window
     {
         var n = _selection.Selected.Count;
         _compare.IsEnabled = !_busy && n == 2; _preview.IsEnabled = !_busy && n == 1;
-        _favorite.IsEnabled = _unfavorite.IsEnabled = !_busy && n > 0; _trash.IsEnabled = !_busy && !_client && n > 0;
-        _export.IsEnabled = !_busy && _files.Any(_favorites.Contains); _role.IsEnabled = _onlyFavorites.IsEnabled = _grid.IsEnabled = !_busy;
-        _clientName.IsEnabled = !_busy && _client;
+        _favorite.IsEnabled = _unfavorite.IsEnabled = !_busy && n > 0; _trash.IsEnabled = !_busy && n > 0;
+        _export.IsEnabled = !_busy && _files.Any(_favorites.Contains); _openFolder.IsEnabled = _onlyFavorites.IsEnabled = _grid.IsEnabled = !_busy;
+        _empty.Visibility = _files.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (!ScopeChanged) { _folder.Text = _files.Count > 0 ? Path.GetDirectoryName(_files[0]) ?? "" : ""; _folder.ToolTip = _folder.Text; }
         var total = Filtered.Length; _previous.IsEnabled = !_busy && _page > 0; _next.IsEnabled = !_busy && (_page + 1) * PageSize < total;
         _count.Text = T($"已选 {n} 张 · 收藏 {_files.Count(_favorites.Contains)} 张 · {total} 张照片 · 第 {_page + 1}/{Math.Max(1, (total + PageSize - 1) / PageSize)} 页", $"{n} selected · {_files.Count(_favorites.Contains)} favorites · {total} photos · Page {_page + 1}/{Math.Max(1, (total + PageSize - 1) / PageSize)}");
     }
@@ -198,7 +229,7 @@ public sealed class PhotoSelectionWindow : Window
     }
     internal async Task DeleteSelectedAsync(Func<int, bool>? confirm = null)
     {
-        var paths = _selection.Ordered(_files); if (_busy || _client || paths.Length == 0) return;
+        var paths = _selection.Ordered(_files); if (_busy || paths.Length == 0) return;
         confirm ??= count => MessageBox.Show(this, T($"将所选 {count} 张照片移入 Windows 回收站？\n可在回收站中恢复。", $"Move {count} selected photos to the Windows Recycle Bin?\nThey can be restored from the Recycle Bin."), T("移入回收站", "Move to Recycle Bin"), MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
         if (!confirm(paths.Length)) return;
         _busy = true; UpdateActions();
@@ -223,7 +254,8 @@ public sealed class PhotoSelectionWindow : Window
     {
         if (e.OriginalSource is TextBox || Keyboard.FocusedElement is TextBox or ComboBox || _busy) return;
         if (e.Key is Key.Space or Key.Enter && Keyboard.FocusedElement is Button or CheckBox) return;
-        if (e.Key == Key.A && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) { _selection.Replace(Filtered); ApplySelection(); }
+        if (e.Key == Key.O && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) OpenFolder();
+        else if (e.Key == Key.A && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) { _selection.Replace(Filtered); ApplySelection(); }
         else if (e.Key == Key.Delete) _ = DeleteSelectedAsync();
         else if (e.Key == Key.P) SaveFavorites(_selection.Selected, true);
         else if (e.Key == Key.U) SaveFavorites(_selection.Selected, false);
