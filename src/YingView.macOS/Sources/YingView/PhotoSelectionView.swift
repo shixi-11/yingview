@@ -26,6 +26,9 @@ struct PhotoSelectionView: View {
                 Spacer()
             }.controlSize(.small)
             HStack {
+                Button(Copy.t("查看原图", "View original")) {
+                    if let photo = model.selectedPhotos.first { model.previewPhoto(photo) }
+                }.disabled(model.selectedPhotos.count != 1)
                 Button(Copy.t("对比两张", "Compare two")) { model.compareSelectedPhotos() }.disabled(model.files.isEmpty)
                 Button(Copy.t("移到废纸篓", "Move to Trash")) { model.trashSelection() }.disabled(model.selectedPhotos.isEmpty)
                 Spacer()
@@ -46,6 +49,9 @@ struct PhotoSelectionView: View {
                         }
                         .padding(8).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
                         .contextMenu {
+                            Button(Copy.t("查看原图", "View original")) { model.previewPhoto(url) }
+                            Button(Copy.t("将此图移到废纸篓…", "Move this photo to Trash…")) { model.trashPhoto(url) }
+                            Divider()
                             Button(Copy.t("移出本次选片", "Remove from this selection")) { model.selectForContext(url); model.removeSelectedPhotos() }
                             Button(Copy.t("移动到文件夹…", "Move to folder…")) { model.selectForContext(url); model.choosePhotoMoveFolder() }
                         }

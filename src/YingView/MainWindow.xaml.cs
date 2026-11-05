@@ -46,6 +46,7 @@ public partial class MainWindow : Window
     private double _interfaceScale;
     private bool _compactToolbar;
     private WindowState _previousState;
+    private Review.PhotoSelectionView? _selectionView;
     private string? _error;
     private bool _currentFileMissing;
     private string T(string zh, string en) => _settings.Language == "zh" ? zh : en;
@@ -72,8 +73,8 @@ public partial class MainWindow : Window
         _toastTimer.Tick += (_, _) => { Toast.Visibility = Visibility.Collapsed; _toastTimer.Stop(); };
         _slideshow.Tick += async (_, _) => { if (!_loading && _files.Length > 1) await Navigate(1); };
         PreviewKeyDown += KeyPressed;
-        DragOver += (_, e) => { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
-        Drop += async (_, e) => { if (e.Data.GetData(DataFormats.FileDrop) is string[] paths) await OpenPaths(paths); e.Handled = true; };
+        DragOver += (_, e) => { e.Effects = WorkspaceHost.Content is null && e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
+        Drop += async (_, e) => { if (WorkspaceHost.Content is null && e.Data.GetData(DataFormats.FileDrop) is string[] paths) await OpenPaths(paths); e.Handled = true; };
         SourceInitialized += (_, _) => SetDarkTitleBar();
         ContentRendered += async (_, _) =>
         {
@@ -97,8 +98,10 @@ public partial class MainWindow : Window
             await OpenStartupAsync();
             Surface.Focus();
         };
-        Closing += (_, _) =>
+        Closing += (_, e) =>
         {
+            if (_selectionView?.IsBusy == true) { e.Cancel = true; return; }
+            if (WorkspaceHost.Content is IDisposable workspace) workspace.Dispose();
             CloseCanvasColor(false);
             _slideshow.Stop(); _toastTimer.Stop(); ++_generation; ++_thumbGeneration; ++_openGeneration;
             Surface.SetDocument(null, DefaultFit);
@@ -684,16 +687,40 @@ public partial class MainWindow : Window
         studio.ShowDialog();
         ApplyTheme(_settings.Theme); ApplyChrome(); BuildMenu();
     }
-    private async void PhotoSelectionClick(object sender, RoutedEventArgs e)
+    private void ShowWorkspace(FrameworkElement workspace)
     {
-        if (_deleting || _loading) return;
+        CloseCanvasColor(false);
         _slideshow.Stop();
-        var current = _current ?? ""; var previousIndex = _index;
-        var picker = new Review.PhotoSelectionWindow(_files, current, IsChinese, preferences: _settings) { Owner = this };
-        picker.ShowDialog();
-        if (picker.RecycledFiles.Count == 0 && picker.MovedFiles.Count == 0 && !picker.ScopeChanged) return;
-        var scope = picker.ScopeChanged ? picker.CurrentFiles.ToArray() : null;
-        await ApplyRecycledSelectionAsync(picker.RecycledFiles.Concat(picker.MovedFiles), current, previousIndex, scope);
+        Root.Visibility = Visibility.Collapsed;
+        WorkspaceHost.Content = workspace;
+        WorkspaceHost.Visibility = Visibility.Visible;
+        Dispatcher.BeginInvoke(() => { if (ReferenceEquals(WorkspaceHost.Content, workspace)) workspace.Focus(); });
+    }
+    private void ReturnToViewer()
+    {
+        if (WorkspaceHost.Content is IDisposable workspace) workspace.Dispose();
+        WorkspaceHost.Content = null;
+        WorkspaceHost.Visibility = Visibility.Collapsed;
+        Root.Visibility = Visibility.Visible;
+        Surface.Focus();
+    }
+    private void PhotoSelectionClick(object sender, RoutedEventArgs e)
+    {
+        if (_deleting || _loading || WorkspaceHost.Content is not null) return;
+        var current = _current ?? "";
+        var previousIndex = _index;
+        var picker = new Review.PhotoSelectionView(_files, current, IsChinese, preferences: _settings);
+        _selectionView = picker;
+        picker.BackRequested += async () =>
+        {
+            if (picker.IsBusy) return;
+            _selectionView = null;
+            ReturnToViewer();
+            if (picker.RecycledFiles.Count == 0 && picker.MovedFiles.Count == 0 && !picker.ScopeChanged) return;
+            var scope = picker.ScopeChanged ? picker.CurrentFiles.ToArray() : null;
+            await ApplyRecycledSelectionAsync(picker.RecycledFiles.Concat(picker.MovedFiles), current, previousIndex, scope);
+        };
+        ShowWorkspace(picker);
     }
     internal async Task ApplyRecycledSelectionAsync(IEnumerable<string> recycled, string current, int previousIndex, string[]? scope = null)
     {
@@ -718,8 +745,10 @@ public partial class MainWindow : Window
         {
             ShowToast(T("打开至少两张图片后，即可对照审阅", "Open at least two images to compare and review")); return;
         }
-        _slideshow.Stop();
-        new Review.ReviewWindow(_files, _current, _settings.Language == "zh") { Owner = this }.ShowDialog();
+        if (WorkspaceHost.Content is not null) return;
+        var comparison = new Review.ReviewView(_files, _current, IsChinese);
+        comparison.BackRequested += ReturnToViewer;
+        ShowWorkspace(comparison);
     }
     private async void DeleteClick(object sender, RoutedEventArgs e) => await DeleteCurrent();
     private async Task DeleteCurrent()
@@ -818,6 +847,7 @@ public partial class MainWindow : Window
         T("Ctrl+O  打开图片\nCtrl+Shift+O  打开文件夹\n← / →  上一张 / 下一张\n滚轮  围绕鼠标缩放\n拖动  移动画面\nF / 0  完整显示并自动放大\n1  原始像素\n+ / −  放大 / 缩小\nR  旋转    H  镜像\nB  切换黑白背景\nDelete / Del  移入回收站\nV  对照审阅\nT  缩略图    I  图片信息\nP  幻灯片    空格  暂停动图\nF11 / 双击  全屏\nTab  隐藏工具栏\nEsc  退出全屏 / 关闭信息\nCtrl+C  复制原图\nCtrl+Shift+C  复制路径\nCtrl+V  粘贴图片\nCtrl+E  在文件夹中显示\nF5  重新载入", "Ctrl+O  Open images\nCtrl+Shift+O  Open folder\n← / →  Previous / next image\nMouse wheel  Zoom around pointer\nDrag  Pan\nF / 0  Enlarge to fit\n1  Actual pixels\n+ / −  Zoom in / out\nR  Rotate    H  Mirror\nB  Switch black/white background\nDelete / Del  Move to Recycle Bin\nV  Compare & review\nT  Thumbnails    I  Image info\nP  Slideshow    Space  Pause animation\nF11 / Double-click  Fullscreen\nTab  Hide toolbars\nEsc  Leave fullscreen / close info\nCtrl+C  Copy original image\nCtrl+Shift+C  Copy file path\nCtrl+V  Paste image\nCtrl+E  Show in folder\nF5  Reload"), T("快捷键", "Keyboard shortcuts"));
     private async void KeyPressed(object sender, KeyEventArgs e)
     {
+        if (WorkspaceHost.Content is not null) return;
         if (_canvasColorPicker is not null && e.Key == Key.Escape)
         {
             CloseCanvasColor(false); e.Handled = true; return;

@@ -385,8 +385,9 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
         photoStatus = Copy.t("已移动 \(result.0.count) 张；同名跳过 \(result.1) 张；失败 \(result.2) 张。", "Moved \(result.0.count); skipped \(result.1) existing names; \(result.2) failed.")
         if !saved { photoStatus? += Copy.t(" 收藏记录未能更新。", " Favorites could not be updated.") }
     }
-    func trashSelection() {
-        let targets = selectedPhotos
+    func trashSelection() { trashPhotos(selectedPhotos) }
+    func trashPhoto(_ url: URL) { trashPhotos([url]) }
+    private func trashPhotos(_ targets: [URL]) {
         guard !photoBusy, !targets.isEmpty, !(NSApp.keyWindow?.firstResponder is NSTextView) else { return }
         let alert = NSAlert(); alert.messageText = Copy.t("将所选 \(targets.count) 张照片移到废纸篓？", "Move \(targets.count) selected photos to Trash?")
         alert.informativeText = Copy.t("可以从系统废纸篓恢复。", "They can be restored from the system Trash.")

@@ -99,7 +99,7 @@ internal static class Program
             }
             Check(calls == (needsSetup ? 1 : 0), "A single confirmation must invoke exactly one real batch operation.");
             result ??= new DefaultAppService.BatchResult(DefaultAppService.GetAssociations("zh"), "", new Dictionary<string, string>());
-            SaveWindowContentReviewPng(confirmation, "default-apps-live-result-zh.png", 520, 330);
+            SaveContentReviewPng(confirmation, "default-apps-live-result-zh.png", 520, 330);
             var statusText = ((TextBlock)Field(confirmation, "_status")).Text;
             confirmation.Close();
             File.WriteAllText(Path.GetFullPath(args[2]), System.Text.Json.JsonSerializer.Serialize(new
@@ -141,9 +141,9 @@ internal static class Program
             var originalBackground = settings.Background;
             window.Width = 1280; window.Height = 800;
             InvokeVoid(window, "SetCanvasBackground", "black");
-            SaveReviewPng(window, (FrameworkElement)window.Content, "canvas-ui-black.png");
+            SaveReviewPng(window, "canvas-ui-black.png");
             InvokeVoid(window, "SetCanvasBackground", "white");
-            SaveReviewPng(window, (FrameworkElement)window.Content, "canvas-ui-white.png");
+            SaveReviewPng(window, "canvas-ui-white.png");
             InvokeVoid(window, "ToggleCanvasBackground");
             Check(settings.Background == "black", "The background button must toggle white to black.");
             InvokeVoid(window, "ToggleCanvasBackground");
@@ -156,7 +156,7 @@ internal static class Program
             {
                 Pump(InvokeAsync(window, "OpenPaths", (object)new[] { fixtures[0], fixtures[1], fixtures[2] }));
                 VerifyRecovery(window, fixtures);
-                VerifyReviewWindow(fixtures);
+                VerifyReviewView(fixtures);
                 Pump(InvokeAsync(window, "OpenPaths", (object)new[] { fixtures[0], fixtures[1], fixtures[2] }));
                 var surface = (FrameworkElement)Field(window, "Surface");
                 Check(surface.ActualWidth > 0 && surface.ActualHeight > 0, "Detached surface must be laid out.");
@@ -169,12 +169,12 @@ internal static class Program
 
                 var root = (Grid)Field(window, "Root");
                 window.Width = 1280; window.Height = 800;
-                SaveReviewPng(window, root, "main-1280-en.png");
+                SaveReviewPng(window, "main-1280-en.png");
                 var originalTheme = settings.Theme; var originalLanguage = settings.Language;
                 settings.Theme = ViewerTheme.BuiltIn[1]; settings.Language = "zh";
                 InvokeVoid(window, "ApplyTheme", settings.Theme); InvokeVoid(window, "ApplyLanguage");
                 window.Width = 720; window.Height = 1280;
-                SaveReviewPng(window, root, "main-720-zh-paper.png");
+                SaveReviewPng(window, "main-720-zh-paper.png");
                 settings.Theme = originalTheme; settings.Language = originalLanguage;
                 InvokeVoid(window, "ApplyTheme", settings.Theme); InvokeVoid(window, "ApplyLanguage");
                 var filmstripButton = (Button)Field(window, "FilmstripToggleButton");
@@ -250,7 +250,7 @@ internal static class Program
         var before = DefaultAppService.GetAssociations("zh");
         Check(before.Count == 10 && before.Any(a => a.ProgId is not null), "Read-only status must query effective Windows associations through the native API.");
         var dialog = new DefaultAppsWindow("zh");
-        SaveWindowContentReviewPng(dialog, "default-apps-zh.png", 520, 330);
+        SaveContentReviewPng(dialog, "default-apps-zh.png", 520, 330);
         dialog.Close();
         var after = DefaultAppService.GetAssociations("zh");
         Check(before.SequenceEqual(after), "Opening or refreshing status must not silently change user defaults.");
@@ -297,7 +297,7 @@ internal static class Program
         standalone.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
         Check(applied == 0 && ((Button)Field(standalone, "_openButton")).Content.ToString()!.Contains("确认"),
             "Standalone setup must wait for the one explicit confirmation, even when opened from the menu.");
-        SaveWindowContentReviewPng(standalone, "default-apps-confirm-zh.png", 520, 330);
+        SaveContentReviewPng(standalone, "default-apps-confirm-zh.png", 520, 330);
         ((Button)Field(standalone, "_openButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         InvokeVoid(standalone, "StartSetup");
         Check(!((Button)Field(standalone, "_openButton")).IsEnabled, "Setup must disable duplicate confirmations while working.");
@@ -319,7 +319,7 @@ internal static class Program
         count = 0;
         var english = new DefaultAppsWindow("en", false, _ => throw new Exception(), Snapshot,
             _ => throw new Exception(), batch: true);
-        SaveWindowContentReviewPng(english, "default-apps-confirm-en.png", 520, 330);
+        SaveContentReviewPng(english, "default-apps-confirm-en.png", 520, 330);
         Check(((TextBlock)Field(english, "_message")).Text.Contains("Confirm to open all 10"), "The English download must offer the same explicit bulk confirmation.");
         english.Close();
 
@@ -415,7 +415,7 @@ internal static class Program
         Pump(preparing);
         Check(((ImageSurface)Field(prepared, "Surface")).Document is not null && !prepared.IsLoaded,
             "Startup preparation must make the requested image available before the window is shown or Loaded fires.");
-        SaveReviewPng(prepared, (FrameworkElement)prepared.Content, "startup-prepared-image.png");
+        SaveReviewPng(prepared, "startup-prepared-image.png");
         var preparedSurface = (ImageSurface)Field(prepared, "Surface");
         Check(Math.Abs(preparedSurface.View.ViewportWidth - preparedSurface.ActualWidth) < 0.01
             && Math.Abs(preparedSurface.View.ViewportHeight - preparedSurface.ActualHeight) < 0.01,
@@ -435,7 +435,7 @@ internal static class Program
         var gate = (SemaphoreSlim)Field(startup, "_decodeGate");
         Check(panel.Visibility == Visibility.Collapsed && (bool)Field(startup, "_loading"),
             "A file launch must suppress the welcome page before the first render or Loaded event.");
-        SaveReviewPng(startup, (FrameworkElement)startup.Content, "startup-before-loaded.png");
+        SaveReviewPng(startup, "startup-before-loaded.png");
         gate.Wait();
         try
         {
@@ -445,13 +445,13 @@ internal static class Program
             SpinUntil(() => string.Equals((string?)Field(startup, "_current"), image, StringComparison.OrdinalIgnoreCase), TimeSpan.FromSeconds(10));
             Check((bool)Field(startup, "_loading") && surface.Document is null && panel.Visibility == Visibility.Collapsed,
                 "A delayed first decode must keep the welcome page hidden while loading.");
-            SaveReviewPng(startup, (FrameworkElement)startup.Content, "startup-opening.png");
+            SaveReviewPng(startup, "startup-opening.png");
         }
         finally { gate.Release(); }
         SpinUntil(() => !(bool)Field(startup, "_loading"), TimeSpan.FromSeconds(10));
         Check(surface.Document is not null && panel.Visibility == Visibility.Collapsed,
             "The Loaded handler must open the actual requested file, including spaces in its path.");
-        SaveReviewPng(startup, (FrameworkElement)startup.Content, "startup-image.png");
+        SaveReviewPng(startup, "startup-image.png");
 
         Pump(InvokeAsync(startup, "OpenPaths", (object)new[] { broken }));
         Check(surface.Document is null && panel.Visibility == Visibility.Visible && (string?)Field(startup, "_error") is not null,
@@ -483,7 +483,7 @@ internal static class Program
             SpinUntil(() => surface.Document is not null, TimeSpan.FromSeconds(10));
             Check(!open.IsCompleted && !(bool)Field(viewer, "_loading"), "The image must be displayed and usable while its folder scan is still blocked.");
             Check(((string[])Field(viewer, "_files")).Length == 1, "Folder indexing must not delay the requested image.");
-            SaveReviewPng(viewer, (FrameworkElement)viewer.Content, "first-image-before-folder.png");
+            SaveReviewPng(viewer, "first-image-before-folder.png");
         }
         finally { releaseScan.Set(); }
         Pump(open);
@@ -607,18 +607,18 @@ internal static class Program
         Check(cancel is not null, "Style studio should expose its cancel action.");
         var slider = (Slider)Field(studio, "_scale");
         slider.Value = 1.2;
-        SaveWindowContentReviewPng(studio, "style-studio-detached.png", 680, 760);
+        SaveContentReviewPng(studio, "style-studio-detached.png", 680, 760);
         cancel!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(settings.Theme == original, "Cancel/close should preserve the original theme.");
         Check(scalePreviews.Count >= 2 && Math.Abs(scalePreviews[^1] - settings.TextScale) < 0.001, "Cancel should restore the live text-scale preview.");
     }
 
-    private static void VerifyReviewWindow(string[] fixtures)
+    private static void VerifyReviewView(string[] fixtures)
     {
-        var review = new ReviewWindow(fixtures, fixtures[0], isZh: false);
+        var review = new ReviewView(fixtures, fixtures[0], isZh: false);
         var content = (FrameworkElement)review.Content;
         Pump(InvokeAsync(review, "LoadPairAsync", 0, 1));
-        SaveWindowContentReviewPng(review, "review-window-detached.png", 1120, 760);
+        SaveContentReviewPng(review, "review-window-detached.png", 1120, 760);
         var surfaces = (ImageSurface[])Field(review, "_surfaces");
         Check(surfaces.All(s => s.Document is not null), "Review window should load both disposable fixtures.");
         foreach (var surface in surfaces)
@@ -628,7 +628,7 @@ internal static class Program
         surfaces[0].Zoom(2);
         Check(Math.Abs(ZoomRatio(surfaces[0]) - 2) < 0.02 && Math.Abs(ZoomRatio(surfaces[1]) - 2) < 0.02,
             "A real ViewChanged zoom should synchronize relative zoom across images with different contain scales.");
-        typeof(ReviewWindow).GetMethod("FitBoth", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(review, null);
+        typeof(ReviewView).GetMethod("FitBoth", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(review, null);
         Check(surfaces.All(s => s.View.FitMode == ViewportFitMode.Contain && !s.View.HasManualZoom), "Fit both should restore complete contain view and clear manual zoom on both sides.");
 
         var syncButton = FindButton(content, "Sync view: On");
@@ -648,19 +648,19 @@ internal static class Program
         pickers[1].SelectedIndex = 2;
         SpinUntil(() => surfaces[1].Document?.Width == 4200, TimeSpan.FromSeconds(20));
         Check(((TextBlock[])Field(review, "_decisions")).All(t => t.Text == "Marked to keep"), "The same file must show the same session mark in both panes.");
-        review.Close();
+        review.Dispose();
         Check(surfaces.All(s => s.Document is null), "Closing comparison must release both images and animation timers.");
 
         var originalSize = Application.Current.Resources["ControlTextSize"];
         try
         {
             Application.Current.Resources["ControlTextSize"] = 16.9;
-            var chinese = new ReviewWindow(fixtures, fixtures[0], isZh: true);
+            var chinese = new ReviewView(fixtures, fixtures[0], isZh: true);
             Pump(InvokeAsync(chinese, "LoadPairAsync", 0, 1));
-            SaveWindowContentReviewPng(chinese, "review-900-zh-large-text.png", 900, 600);
+            SaveContentReviewPng(chinese, "review-900-zh-large-text.png", 900, 600);
             var export = (Button)Field(chinese, "_exportButton");
             Check(export.FontSize > 15 && export.ActualWidth > 80, "Comparison actions must follow the larger interface text setting.");
-            chinese.Close();
+            chinese.Dispose();
         }
         finally { Application.Current.Resources["ControlTextSize"] = originalSize; }
     }
@@ -674,7 +674,7 @@ internal static class Program
             var update = new YingView.Updates.UpdateWindow(new Version(0,3,13),language,initialResult:result);
             update.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
             Check(((Button)Field(update,"_primary")).Content.ToString()==(language=="zh"?"下载更新":"Download update"),"The update notice must offer the correct localized download action.");
-            SaveWindowContentReviewPng(update,"update-"+language+".png",500,360); update.Close();
+            SaveContentReviewPng(update,"update-"+language+".png",500,360); update.Close();
         }
         var store = new YingView.Updates.UpdateWindow(new Version(0,3,13),"zh",storeManaged:true);
         store.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
@@ -702,7 +702,7 @@ internal static class Program
         FindButton(library, "载入")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(((TextBox)Field(studio, "_name")).Text == "山间苔色", "A free client must be able to load a saved style.");
         library.Close();
-        SaveWindowContentReviewPng(studio, "style-studio-zh.png", 704, 760);
+        SaveContentReviewPng(studio, "style-studio-zh.png", 704, 760);
         Check(preview?.Name == "山间苔色", "Renaming a theme must update its live preview.");
         InvokeVoid(studio, "Apply");
         var saved = System.Text.Json.JsonSerializer.Deserialize<Preferences>(File.ReadAllText(path))!;
@@ -741,7 +741,7 @@ internal static class Program
                 Check((string)FindLink(about, "SupportLink").Tag == AboutWindow.SupportUrl(code == "zh"), "Support must open the matching language page.");
                 Check((string)FindLink(about, "ContactLink").Tag == "mailto:info@elevencapital.ltd", "Collaboration must use the approved address.");
                 Check((string)FindLink(about, "SourceLink").Tag == "https://github.com/shixi-11/yingview/tree/v" + version, "The client must link to the corresponding release source.");
-                SaveWindowContentReviewPng(about, "about-" + code + ".png", 470, 600);
+                SaveContentReviewPng(about, "about-" + code + ".png", 470, 600);
                 about.Close();
             }
         }
@@ -770,8 +770,9 @@ internal static class Program
         return null;
     }
 
-    private static void SaveReviewPng(MainWindow window, FrameworkElement root, string fileName)
+    private static void SaveReviewPng(MainWindow window, string fileName)
     {
+        var root = (FrameworkElement)window.Content;
         window.Content = null;
         using var host = new HwndSource(new HwndSourceParameters("YingView.App.Tests.HiddenRenderHost") { Width = 1280, Height = 800, WindowStyle = 0 });
         host.RootVisual = root;
@@ -781,7 +782,7 @@ internal static class Program
         window.Content = root;
     }
 
-    private static void SaveWindowContentReviewPng(Window window, string fileName, int width, int height)
+    private static void SaveContentReviewPng(ContentControl window, string fileName, int width, int height)
     {
         var content = (FrameworkElement)window.Content;
         window.Content = null;
@@ -881,10 +882,10 @@ internal static class Program
         reviewFrames.Append(Enumerable.Repeat(new byte[] { 0, 0, 255, 128 }, 8).SelectMany(p => p).ToArray());
         reviewFrames.Complete();
         var reviewDocument = new YingView.Imaging.ImageDocument(reviewFrames, new[] { 120 }, 4, 2, "GIF", reviewFrames.EstimatedBytes);
-        var review = new ReviewWindow(new[] { "a.gif", "b.gif" }, "a.gif", false);
+        var review = new ReviewView(new[] { "a.gif", "b.gif" }, "a.gif", false);
         ((ImageSurface[])Field(review, "_surfaces"))[0].SetDocument(reviewDocument, ViewportFitMode.Contain);
         var reviewPath = reviewFrames.BackingPath;
-        review.Close();
+        review.Dispose();
         Check(!File.Exists(reviewPath), "Closing comparison must dispose its animation files.");
     }
 

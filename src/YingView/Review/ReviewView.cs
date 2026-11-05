@@ -15,7 +15,7 @@ using YingView.Imaging;
 namespace YingView.Review;
 
 /// <summary>A local, manual two-image comparison workspace. It never writes to source images.</summary>
-public sealed class ReviewWindow : Window
+public sealed class ReviewView : UserControl, IDisposable
 {
     private readonly string[] _files;
     private readonly PhotoSelectionStore? _selectionStore;
@@ -37,8 +37,9 @@ public sealed class ReviewWindow : Window
     private readonly bool[] _sideReady = new bool[2];
     private readonly bool[] _sideLoading = new bool[2];
     private bool _closed;
+    internal event Action? BackRequested;
 
-    public ReviewWindow(string[] files, string current, bool isZh, PhotoSelectionStore? selectionStore = null, string selectionList = "favorites")
+    public ReviewView(string[] files, string current, bool isZh, PhotoSelectionStore? selectionStore = null, string selectionList = "favorites")
     {
         _isZh = isZh; _selectionStore = selectionStore; _selectionList = selectionList;
         _backgroundNames = isZh ? ["深色", "浅色", "棋盘"] : ["Dark", "Light", "Checker"];
@@ -48,9 +49,9 @@ public sealed class ReviewWindow : Window
         if (start < 0) start = 0;
         var second = (start + 1) % _files.Length;
 
-        Title = T("对照审阅 · 映窗", "Compare images · YingView");
-        Width = 1120; Height = 760; MinWidth = 900; MinHeight = 600;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        Focusable = true;
+        HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        VerticalContentAlignment = VerticalAlignment.Stretch;
         Background = new SolidColorBrush(Color.FromRgb(17, 20, 23));
         Foreground = Brushes.White;
         FontFamily = new FontFamily("Segoe UI, Microsoft YaHei UI");
@@ -61,24 +62,27 @@ public sealed class ReviewWindow : Window
         Content = BuildContent(start, second);
         ApplyTextScaling(Content);
         RefreshExportButton();
-        Loaded += async (_, _) => await LoadPairAsync(start, second);
+        Loaded += async (_, _) => { if (!_closed && _loadGeneration.All(generation => generation == 0)) await LoadPairAsync(start, second); };
         PreviewKeyDown += (_, e) =>
         {
             var key = e.Key == Key.ImeProcessed ? e.ImeProcessedKey : e.Key;
             if (e.OriginalSource is TextBox || Keyboard.FocusedElement is ComboBox { IsDropDownOpen: true }) return;
+            if (key == Key.Escape) { e.Handled = true; BackRequested?.Invoke(); return; }
             if (key is System.Windows.Input.Key.F or System.Windows.Input.Key.D0 or System.Windows.Input.Key.NumPad0)
             { FitBoth(); e.Handled = true; }
         };
-        Closed += (_, _) =>
+    }
+
+    public void Dispose()
+    {
+        if (_closed) return;
+        _closed = true;
+        for (var i = 0; i < _loadGeneration.Length; i++)
         {
-            _closed = true;
-            for (var i = 0; i < _loadGeneration.Length; i++)
-            {
-                _loadGeneration[i]++;
-                _sideLoading[i] = false;
-                ClearSide(i);
-            }
-        };
+            _loadGeneration[i]++;
+            _sideLoading[i] = false;
+            ClearSide(i);
+        }
     }
 
     private const string Pending = "Pending";
@@ -101,6 +105,9 @@ public sealed class ReviewWindow : Window
         titleStack.Children.Add(new TextBlock { Text = T("双图同步查看 · 人工标记", "Synchronized view · Manual review"), TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = BrushFrom("#A9B1B8"), Margin = new Thickness(0, 2, 0, 0) });
         header.Children.Add(titleStack);
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+        var back = MakeButton(_selectionStore is null ? T("返回看图", "Back to viewer") : T("返回选片", "Back to selection"), subtle: true);
+        back.Click += (_, _) => BackRequested?.Invoke();
+        headerActions.Children.Add(back);
         var fit = MakeButton(T("适合", "Fit"), subtle: true);
         fit.ToolTip = T("完整显示两张图片 · F", "Fit both images · F");
         fit.Click += (_, _) => FitBoth(); headerActions.Children.Add(fit);
@@ -316,7 +323,7 @@ public sealed class ReviewWindow : Window
         if (!_sideReady[side] || _pickers[side].SelectedIndex < 0) return;
         var path = _files[_pickers[side].SelectedIndex];
         try { _selectionStore?.Set(_selectionList, [path], mark == Keep); }
-        catch (Exception e) { MessageBox.Show(this, e.Message, T("收藏未保存", "Favorite not saved")); return; }
+        catch (Exception e) { MessageBox.Show(Window.GetWindow(this), e.Message, T("收藏未保存", "Favorite not saved")); return; }
         _marks[path] = mark;
         RefreshDecision(0); RefreshDecision(1);
     }
@@ -395,7 +402,7 @@ public sealed class ReviewWindow : Window
     private async Task ExportCsvAsync()
     {
         var dialog = new SaveFileDialog { Title = T("导出本次审阅清单", "Export this review list"), Filter = "CSV (*.csv)|*.csv", DefaultExt = ".csv", AddExtension = true, FileName = $"YingView-review-{DateTime.Now:yyyyMMdd-HHmm}.csv" };
-        if (dialog.ShowDialog(this) != true) return;
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
         var rows = _marks.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).ToArray();
         var sb = new StringBuilder();
         sb.AppendLine(T("文件,标记", "File,Decision"));
@@ -404,11 +411,11 @@ public sealed class ReviewWindow : Window
         try
         {
             await File.WriteAllTextAsync(dialog.FileName, sb.ToString(), new UTF8Encoding(true));
-            MessageBox.Show(this, T("清单已导出。原图片未作修改。", "The list was exported. Original images were not changed."), T("导出完成", "Export complete"), MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Window.GetWindow(this), T("清单已导出。原图片未作修改。", "The list was exported. Original images were not changed."), T("导出完成", "Export complete"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, T("导出失败：", "Export failed: ") + ex.Message, T("无法导出", "Could not export"), MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Window.GetWindow(this), T("导出失败：", "Export failed: ") + ex.Message, T("无法导出", "Could not export"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
