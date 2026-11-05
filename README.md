@@ -26,7 +26,7 @@ The palette is embedded in the main window, so it does not cover the image with 
 
 Click **Select photos**, or press **Ctrl+Shift+P**, to open the contact sheet. Choose **Open folder** to load a whole set, or drop a folder or several images onto the grid. **Ctrl-click** selects individual photos; **Shift-click** selects a range. Choose **Compare two** with one photo selected to start from that image, or select two to compare the exact pair. Zoom and pan both views together. Double-click for a whole-image preview, browse with the arrow keys, and return to the photo you last viewed.
 
-Favorites are saved locally between sessions. Filter to favorites or export their filenames as a TXT list. You can move multiple selected files to the Recycle Bin after one confirmation; failed files remain in the selection, with no permanent-delete fallback. Choose 24, 48, 96, 120 or 240 photos per page and adjust thumbnail size separately. Both settings are saved, and selections can span pages.
+Favorites are saved locally between sessions. Filter to favorites or export their filenames as a TXT list. You can move multiple selected files to the Recycle Bin after one confirmation; failed files remain in the selection, with no permanent-delete fallback. Choose 2, 4, 6, 8, 12, 16 or 24 photos per page and adjust thumbnail size separately. Both settings are saved, and selections can span pages.
 
 **Clear imported** clears the current list. Right-click **Remove from this selection** to remove just the selected entries. Both preserve the original files and favorites. **Move to folder** relocates selected files, skips existing names and updates favorites for successful moves.
 

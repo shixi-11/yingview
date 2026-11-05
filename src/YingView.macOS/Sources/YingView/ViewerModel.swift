@@ -82,7 +82,7 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
     @Published private(set) var photoPageSize: Int
     @Published var photoThumbnailSize: Double { didSet { defaults.set(photoThumbnailSize, forKey: "photoThumbnailSize") } }
     private var photoPreviewScope: [URL]?
-    static let photoPageSizes = [24, 48, 96, 120, 240]
+    static let photoPageSizes = [2, 4, 6, 8, 12, 16, 24]
     @Published var photoStatus: String?
     @Published var photoLists: [String: [String]] = [:] { didSet { favoriteCacheKey = nil } }
     private var favoriteCacheKey: String?
@@ -110,7 +110,7 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
     init(defaults: UserDefaults? = nil) {
         self.defaults = defaults ?? (ProcessInfo.processInfo.arguments.contains("--smoke-test") ? UserDefaults(suiteName: "YingViewSmoke-\(UUID().uuidString)")! : .standard)
         let pageSize = self.defaults.integer(forKey: "photoPageSize")
-        photoPageSize = Self.photoPageSizes.contains(pageSize) ? pageSize : 48
+        photoPageSize = Self.photoPageSizes.contains(pageSize) ? pageSize : 12
         let thumbnailSize = self.defaults.double(forKey: "photoThumbnailSize")
         photoThumbnailSize = (120...320).contains(thumbnailSize) ? thumbnailSize : 180
         accent = self.defaults.string(forKey: "accent") ?? "blue"

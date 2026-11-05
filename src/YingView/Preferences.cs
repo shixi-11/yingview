@@ -20,7 +20,9 @@ public sealed class Preferences
     public ViewerTheme Theme { get; set; } = ViewerTheme.BuiltIn[0];
     public double TextScale { get; set; } = 1.0;
     public bool CompactToolbar { get; set; }
-    public int PhotoPageSize { get; set; } = 48;
+    internal const int DefaultPhotoPageSize = 12;
+    internal static IReadOnlyList<int> PhotoPageSizes { get; } = Array.AsReadOnly(new[] { 2, 4, 6, 8, 12, 16, 24 });
+    public int PhotoPageSize { get; set; } = DefaultPhotoPageSize;
     public double PhotoThumbnailSize { get; set; } = 180;
     public List<ViewerTheme> PersonalStyles { get; set; } = [];
     public List<string> RecentFiles { get; set; } = [];
@@ -45,7 +47,7 @@ public sealed class Preferences
             value.RecentFiles = (value.RecentFiles ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Take(8).ToList();
             if (value.AppearanceUiVersion < 2) { value.Filmstrip = false; value.AppearanceUiVersion = 2; }
             if (value.TextScale is < 0.85 or > 1.3) value.TextScale = 1.0;
-            if (value.PhotoPageSize is not (24 or 48 or 96 or 120 or 240)) value.PhotoPageSize = 48;
+            if (!PhotoPageSizes.Contains(value.PhotoPageSize)) value.PhotoPageSize = DefaultPhotoPageSize;
             if (!double.IsFinite(value.PhotoThumbnailSize) || value.PhotoThumbnailSize is < 120 or > 320) value.PhotoThumbnailSize = 180;
             value.PersonalStyles ??= [];
             value.PersonalStyles = value.PersonalStyles.Where(t => { try { t.Validate(); return true; } catch { return false; } }).ToList();

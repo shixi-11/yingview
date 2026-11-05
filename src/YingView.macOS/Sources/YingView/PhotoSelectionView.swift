@@ -55,14 +55,14 @@ struct PhotoSelectionView: View {
             }.id(model.visiblePhotoPage).onDeleteCommand { model.trashSelection() }
                 .overlay { if model.selectionFiles.isEmpty { Text(model.files.isEmpty ? Copy.t("打开或拖入文件夹，开始选片", "Open or drop a folder to start selecting photos") : Copy.t("还没有收藏照片", "No favorites yet")).foregroundStyle(.secondary).allowsHitTesting(false) } }
             HStack {
+                Button(Copy.t("← 上一页", "← Previous page")) { model.changePhotoPage(-1) }.disabled(model.visiblePhotoPage == 0)
+                Text(model.selectionFiles.isEmpty ? "0 / 0" : "\(model.visiblePhotoPage + 1) / \(model.photoPageCount)").monospacedDigit()
+                Button(Copy.t("下一页 →", "Next page →")) { model.changePhotoPage(1) }.disabled(model.visiblePhotoPage + 1 >= model.photoPageCount)
                 Picker(Copy.t("每页", "Per page"), selection: Binding(get: { model.photoPageSize }, set: { model.setPhotoPageSize($0) })) {
                     ForEach(ViewerModel.photoPageSizes, id: \.self) { Text("\($0)").tag($0) }
-                }.frame(width: 130)
-                Slider(value: $model.photoThumbnailSize, in: 120...320) { Text(Copy.t("缩略图大小", "Thumbnail size")) }.frame(maxWidth: 270)
+                }.frame(width: 116)
+                Slider(value: $model.photoThumbnailSize, in: 120...320) { Text(Copy.t("缩略图大小", "Thumbnail size")) }.frame(maxWidth: 250)
                 Spacer()
-                Button(Copy.t("上一页", "Previous page")) { model.changePhotoPage(-1) }.disabled(model.visiblePhotoPage == 0)
-                Text("\(model.visiblePhotoPage + 1) / \(model.photoPageCount)").monospacedDigit()
-                Button(Copy.t("下一页", "Next page")) { model.changePhotoPage(1) }.disabled(model.visiblePhotoPage + 1 >= model.photoPageCount)
             }.controlSize(.small)
             Text(Copy.t("已选 \(model.selectedPhotos.count) 张 · 收藏 \(model.files.filter { model.favoriteIDs.contains(PhotoSelectionState.identity($0)) }.count) 张", "\(model.selectedPhotos.count) selected · \(model.files.filter { model.favoriteIDs.contains(PhotoSelectionState.identity($0)) }.count) favorites")).font(.caption)
             Text(model.photoStatus ?? Copy.t("⌘ 多选 · Shift 连选 · 双击大图；收藏不改动原片。", "⌘ multi-select · Shift range · Double-click to preview. Favorites do not change originals.")).font(.caption).foregroundStyle(.secondary)

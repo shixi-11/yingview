@@ -117,6 +117,8 @@ internal static class PhotoSelectionAssertions
         typeof(PhotoSelectionWindow).GetMethod("SaveThumbnailSize", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(paged, null);
         var reloadedView = Preferences.Load(Path.Combine(folder, "view-options.json"));
         Check(reloadedView.PhotoPageSize == 24 && reloadedView.PhotoThumbnailSize == 260 && (int)PagedField("_page") == 2, "Page and thumbnail choices must persist without losing the current position.");
+        ((ComboBox)PagedField("_pageSizeChoice")).SelectedItem = 2;
+        Check(((System.Collections.ICollection)PagedField("_rows")).Count == 2 && (int)PagedField("_page") == 25, "A two-photo page must retain the current photo and paginate it correctly.");
         paged.Close();
         var navigable = new PhotoPreviewWindow([first, second, third], first, false);
         await navigable.LoadCurrentAsync(); await navigable.NavigateAsync(1);

@@ -23,7 +23,7 @@ public sealed class PhotoSelectionWindow : Window
     private readonly ComboBox _pageSizeChoice = new() { Width = 70, Margin = new Thickness(6, 0, 14, 0), VerticalContentAlignment = VerticalAlignment.Center };
     private readonly Slider _thumbnailSize = new() { Minimum = 120, Maximum = 320, Width = 132, Margin = new Thickness(8, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center, IsMoveToPointEnabled = true };
     private readonly TextBlock _selectedCount = new() { Foreground = Brushes.LightGray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 4) };
-    private int PageSize => (int)(_pageSizeChoice.SelectedItem ?? 48);
+    private int PageSize => (int)(_pageSizeChoice.SelectedItem ?? Preferences.DefaultPhotoPageSize);
     private string? _activePath;
     private readonly bool _zh;
     private readonly List<string> _files;
@@ -34,6 +34,7 @@ public sealed class PhotoSelectionWindow : Window
     private readonly ObservableCollection<Row> _rows = [];
     private readonly ListBox _grid = new() { SelectionMode = SelectionMode.Extended, Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
     private readonly CheckBox _onlyFavorites = new() { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
+    private readonly TextBlock _pageLabel = new() { VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White, Margin = new Thickness(8, 0, 12, 4) };
     private readonly TextBlock _count = new() { VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightGray, Margin = new Thickness(0, 6, 0, 0) };
     private readonly Button _compare, _preview, _favorite, _unfavorite, _trash, _export, _previous, _next;
@@ -57,8 +58,8 @@ public sealed class PhotoSelectionWindow : Window
         Func<IEnumerable<string>, IntPtr, Task<RecycleBinService.BatchResult>>? recycle = null, Preferences? preferences = null)
     {
         _preferences = preferences ?? Preferences.Load();
-        _pageSizeChoice.ItemsSource = new[] { 24, 48, 96, 120, 240 };
-        _pageSizeChoice.SelectedItem = _preferences.PhotoPageSize is 24 or 48 or 96 or 120 or 240 ? _preferences.PhotoPageSize : 48;
+        _pageSizeChoice.ItemsSource = Preferences.PhotoPageSizes;
+        _pageSizeChoice.SelectedItem = Preferences.PhotoPageSizes.Contains(_preferences.PhotoPageSize) ? _preferences.PhotoPageSize : Preferences.DefaultPhotoPageSize;
         _thumbnailSize.Value = double.IsFinite(_preferences.PhotoThumbnailSize) ? Math.Clamp(_preferences.PhotoThumbnailSize, 120, 320) : 180;
         _activePath = current;
         _zh = chinese; _store = store ?? new(); _recycle = recycle ?? RecycleBinService.RecycleManyAsync;
@@ -143,15 +144,16 @@ public sealed class PhotoSelectionWindow : Window
         var content = new Grid(); content.Children.Add(_grid); content.Children.Add(_empty);
         Grid.SetRow(content, 2); root.Children.Add(content);
         var footer = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
-        var paging = new DockPanel(); var pages = new StackPanel { Orientation = Orientation.Horizontal };
-        _previous = Action(T("← 上一页", "← Previous page"), () => { _page--; RenderPage(); }); _next = Action(T("下一页 →", "Next page →"), () => { _page++; RenderPage(); }); pages.Children.Add(_previous); pages.Children.Add(_next);
-        DockPanel.SetDock(pages, Dock.Right); paging.Children.Add(pages); paging.Children.Add(_count); footer.Children.Add(paging);
-        var viewOptions = new WrapPanel { Margin = new Thickness(0, 7, 0, 2) };
-        viewOptions.Children.Add(new TextBlock { Text = T("每页", "Per page"), Foreground = Brushes.LightGray, VerticalAlignment = VerticalAlignment.Center });
-        viewOptions.Children.Add(_pageSizeChoice);
-        viewOptions.Children.Add(new TextBlock { Text = T("缩略图大小", "Thumbnail size"), Foreground = Brushes.LightGray, VerticalAlignment = VerticalAlignment.Center });
-        viewOptions.Children.Add(_thumbnailSize); footer.Children.Add(viewOptions);
-        footer.Children.Add(new TextBlock { Text = T("Ctrl 多选 · Shift 连选 · Ctrl+A 全选 · 空格大图 · C 对比 · P 收藏 · U 取消收藏", "Ctrl multi-select · Shift range · Ctrl+A select all · Space preview · C compare · P favorite · U unfavorite"), TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightGray, FontSize = 11, Margin = new Thickness(0, 5, 0, 0) });
+        var paging = new WrapPanel();
+        _previous = Action(T("← 上一页", "← Previous page"), () => TurnPage(-1));
+        _next = Action(T("下一页 →", "Next page →"), () => TurnPage(1));
+        _previous.ToolTip = "PgUp"; _next.ToolTip = "PgDn";
+        paging.Children.Add(_previous); paging.Children.Add(_pageLabel); paging.Children.Add(_next);
+        paging.Children.Add(new TextBlock { Text = T("每页", "Per page"), Foreground = Brushes.LightGray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) });
+        paging.Children.Add(_pageSizeChoice);
+        paging.Children.Add(new TextBlock { Text = T("缩略图大小", "Thumbnail size"), Foreground = Brushes.LightGray, VerticalAlignment = VerticalAlignment.Center });
+        paging.Children.Add(_thumbnailSize); footer.Children.Add(paging);
+        footer.Children.Add(_count);
         footer.Children.Add(_status); Grid.SetRow(footer, 3); root.Children.Add(footer); Content = root;
         _onlyFavorites.Checked += (_, _) => { _page = 0; _selection.Retain(Filtered); RenderPage(); };
         _onlyFavorites.Unchecked += (_, _) => { _page = 0; RenderPage(); };
@@ -199,7 +201,7 @@ public sealed class PhotoSelectionWindow : Window
             _files.Clear(); _files.AddRange(files); ScopeChanged = true;
             _folder.Text = paths.Length == 1 && Directory.Exists(paths[0]) ? Path.GetFullPath(paths[0]) : T("所选照片", "Selected photos"); _folder.ToolTip = _folder.Text;
             _onlyFavorites.IsChecked = false; _selection.Replace([]); _page = 0; RenderPage();
-            _status.Text = files.Length == 0 ? T("此文件夹没有支持的图片。", "This folder contains no supported images.") : T("Ctrl 多选，Shift 连选；选两张即可对比。", "Ctrl-click to select, Shift-click for a range. Select two to compare.");
+            _status.Text = files.Length == 0 ? T("此文件夹没有支持的图片。", "This folder contains no supported images.") : T("Ctrl 多选 · Shift 连选 · PgUp/PgDn 翻页", "Ctrl-click to multi-select · Shift-click for a range · PgUp/PgDn to turn pages");
         }
         catch (Exception e) { _status.Text = T("无法读取文件夹：", "Could not read folder: ") + e.Message; }
         finally { _busy = false; UpdateActions(); }
@@ -209,6 +211,11 @@ public sealed class PhotoSelectionWindow : Window
         try { _favorites = _store.Read(ListKey); _status.Text = T("收藏保存在本机，不改动原片；可导出文件名清单。", "Favorites stay on this computer without changing originals. Export the filenames when ready."); }
         catch (Exception e) { _favorites = []; _status.Text = T("无法读取收藏清单：", "Could not read favorites: ") + e.Message; }
         _selection.Replace([]); _page = 0; RenderPage();
+    }
+    private void TurnPage(int delta)
+    {
+        _page += delta; RenderPage();
+        if (_rows.FirstOrDefault() is { } first) _grid.ScrollIntoView(first);
     }
     private void SaveThumbnailSize()
     {
@@ -279,7 +286,9 @@ public sealed class PhotoSelectionWindow : Window
         _empty.Visibility = total == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (!ScopeChanged) { _folder.Text = _files.Count > 0 ? Path.GetDirectoryName(_files[0]) ?? "" : ""; _folder.ToolTip = _folder.Text; }
         _previous.IsEnabled = !_busy && _page > 0; _next.IsEnabled = !_busy && (_page + 1) * PageSize < total;
-        _count.Text = T($"已选 {n} 张 · 收藏 {_files.Count(_favorites.Contains)} 张 · {total} 张照片 · 第 {_page + 1}/{Math.Max(1, (total + PageSize - 1) / PageSize)} 页", $"{n} selected · {_files.Count(_favorites.Contains)} favorites · {total} photos · Page {_page + 1}/{Math.Max(1, (total + PageSize - 1) / PageSize)}");
+        var pageCount = (total + PageSize - 1) / PageSize;
+        _pageLabel.Text = $"{(pageCount == 0 ? 0 : _page + 1)} / {pageCount}";
+        _count.Text = T($"{total} 张照片 · 收藏 {_files.Count(_favorites.Contains)} 张", $"{total} photos · {_files.Count(_favorites.Contains)} favorites");
     }
     private bool SaveFavorites(IEnumerable<string> paths, bool favorite)
     {
@@ -413,8 +422,8 @@ public sealed class PhotoSelectionWindow : Window
         else if (key == Key.U) SaveFavorites(_selection.Selected, false);
         else if (key == Key.C) CompareSelected();
         else if (key == Key.Space && Keyboard.Modifiers == ModifierKeys.None) PreviewSelected();
-        else if (key == Key.PageDown && _next.IsEnabled) { _page++; RenderPage(); }
-        else if (key == Key.PageUp && _previous.IsEnabled) { _page--; RenderPage(); }
+        else if (key == Key.PageDown && _next.IsEnabled) TurnPage(1);
+        else if (key == Key.PageUp && _previous.IsEnabled) TurnPage(-1);
         else if (key == Key.Escape) Close();
         else return;
         e.Handled = true;
