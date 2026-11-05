@@ -52,8 +52,8 @@ struct YingViewApp: App {
                 Button(Copy.t("设为默认图片查看器…", "Set as Default Image Viewer…")) { model.setDefaultViewer() }
             }
             CommandMenu(Copy.t("图片", "Image")) {
-                Button(Copy.t("上一张", "Previous")) { model.move(-1) }.disabled(model.index == 0)
-                Button(Copy.t("下一张", "Next")) { model.move(1) }.disabled(model.index + 1 >= model.files.count)
+                Button(Copy.t("上一张", "Previous")) { model.move(-1) }.disabled(!model.canMove(-1))
+                Button(Copy.t("下一张", "Next")) { model.move(1) }.disabled(!model.canMove(1))
                 Divider()
                 Button(Copy.t("完整显示", "Fit to Window")) { model.fit() }.keyboardShortcut("0")
                 Button(Copy.t("实际大小", "Actual Size")) { model.perform(.actual) }.keyboardShortcut("1")
@@ -61,9 +61,9 @@ struct YingViewApp: App {
                 Button(Copy.t("缩小", "Zoom Out")) { model.perform(.zoomOut) }.keyboardShortcut("-")
                 Button(Copy.t("旋转", "Rotate")) { model.rotate() }.keyboardShortcut("r", modifiers: [.command, .shift])
                 Button(Copy.t("显示/隐藏缩略图", "Toggle Thumbnails")) { model.showFilmstrip.toggle() }.keyboardShortcut("t")
-                Button(Copy.t("双图对照", "Compare Two Images")) { model.compare.toggle() }.keyboardShortcut("d")
+                Button(Copy.t("双图对照", "Compare Two Images")) { model.toggleComparison() }.keyboardShortcut("d")
                 Divider()
-                Button(Copy.t("选片", "Select photos")) { model.showSelection.toggle() }.keyboardShortcut("p", modifiers: [.command, .shift])
+                Button(Copy.t("选片", "Select photos")) { model.togglePhotoSelection() }.keyboardShortcut("p", modifiers: [.command, .shift])
                 Button(Copy.t("移到废纸篓", "Move to Trash")) { model.trashFromKeyboard() }.keyboardShortcut(.delete, modifiers: [.command]).disabled(model.photoBusy)
             }
         }
@@ -133,17 +133,17 @@ struct ViewerWindow: View {
         HStack(spacing: 14) {
             Button { model.chooseImages() } label: { Label(Copy.t("打开", "Open"), systemImage: "folder") }
             Divider().frame(height: 20)
-            control("chevron.left", Copy.t("上一张", "Previous")) { model.move(-1) }.disabled(model.index == 0)
-            control("chevron.right", Copy.t("下一张", "Next")) { model.move(1) }.disabled(model.index + 1 >= model.files.count)
+            control("chevron.left", Copy.t("上一张", "Previous")) { model.move(-1) }.disabled(!model.canMove(-1))
+            control("chevron.right", Copy.t("下一张", "Next")) { model.move(1) }.disabled(!model.canMove(1))
             Text(model.current?.lastPathComponent ?? Copy.brand).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-            Button { model.showSelection.toggle() } label: { Label(Copy.t("选片", "Select photos"), systemImage: "square.grid.2x2") }
+            Button { model.togglePhotoSelection() } label: { Label(model.previewingSelection ? Copy.t("返回选片", "Back to selection") : Copy.t("选片", "Select photos"), systemImage: "square.grid.2x2") }
             control("arrow.up.left.and.arrow.down.right", Copy.t("完整显示", "Fit to Window")) { model.fit() }
             Button("100%") { model.perform(.actual) }.help(Copy.t("实际像素大小", "Actual pixel size"))
             control("minus.magnifyingglass", Copy.t("缩小", "Zoom Out")) { model.perform(.zoomOut) }
             control("plus.magnifyingglass", Copy.t("放大", "Zoom In")) { model.perform(.zoomIn) }
             control("rotate.right", Copy.t("旋转", "Rotate")) { model.rotate() }
             control("rectangle.bottomthird.inset.filled", Copy.t("缩略图", "Thumbnails")) { model.showFilmstrip.toggle() }
-            control("rectangle.split.2x1", Copy.t("双图对照", "Compare")) { model.compare.toggle() }
+            control("rectangle.split.2x1", Copy.t("双图对照", "Compare")) { model.toggleComparison() }
             control("arrow.clockwise", Copy.t("刷新", "Refresh")) { model.refresh() }
             control("slider.horizontal.3", Copy.t("外观", "Appearance")) { model.beginAppearanceEdit() }
             control("trash", Copy.t("移到废纸篓", "Move to Trash")) { model.trashFromKeyboard() }.disabled(model.photoBusy || (model.showSelection ? model.selectedPhotos.isEmpty : model.current == nil))
@@ -194,13 +194,14 @@ struct ViewerWindow: View {
 
 struct Thumbnail: View {
     let url: URL
+    var thumbnailPixels: Int = 160
     @State private var image: CGImage?
     var body: some View {
         Group {
             if let image { Image(decorative: image, scale: 1).resizable().scaledToFit() }
             else { Image(systemName: "photo").foregroundStyle(.secondary) }
-        }.task(id: url) {
-            let result = try? await ImageDecoder.load(url, thumbnail: true)
+        }.task(id: "\(url.path)#\(thumbnailPixels)") {
+            let result = try? await ImageDecoder.load(url, thumbnail: true, thumbnailPixels: thumbnailPixels)
             if !Task.isCancelled { image = result?.frames.first }
         }
     }

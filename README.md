@@ -4,7 +4,7 @@ See the whole picture, then look closer. YingView is a free, open-source image v
 
 [简体中文](README.zh-CN.md) · [Download](https://github.com/shixi-11/yingview/releases/latest) · [Report an issue](https://github.com/shixi-11/yingview/issues) · [Support development](https://shixilin.com/en/support)
 
-**Windows source: 0.3.23 Preview · Windows 10/11 x64 · AGPL-3.0-only**
+**Windows source: 0.3.24 Preview · Windows 10/11 x64 · AGPL-3.0-only**
 
 ## Windows features
 
@@ -24,9 +24,11 @@ The palette is embedded in the main window, so it does not cover the image with 
 
 ### Photo selection for photographers and clients
 
-Click **Select photos**, or press **Ctrl+Shift+P**, to open the contact sheet. Choose **Open folder** to load a whole set, or drop a folder or several images onto the grid. **Ctrl-click** selects individual photos; **Shift-click** selects a range. Select exactly two images and choose **Compare two** for side-by-side inspection with synchronized zoom and panning. Double-click a photo for a whole-image preview; close the preview to return to the grid.
+Click **Select photos**, or press **Ctrl+Shift+P**, to open the contact sheet. Choose **Open folder** to load a whole set, or drop a folder or several images onto the grid. **Ctrl-click** selects individual photos; **Shift-click** selects a range. Choose **Compare two** with one photo selected to start from that image, or select two to compare the exact pair. Zoom and pan both views together. Double-click for a whole-image preview, browse with the arrow keys, and return to the photo you last viewed.
 
-Favorites are saved locally between sessions. Filter to favorites or export their filenames as a TXT list. You can move multiple selected files to the Recycle Bin after one confirmation; failed files remain in the selection, with no permanent-delete fallback. The grid shows up to 120 thumbnails per page and supports selections across pages.
+Favorites are saved locally between sessions. Filter to favorites or export their filenames as a TXT list. You can move multiple selected files to the Recycle Bin after one confirmation; failed files remain in the selection, with no permanent-delete fallback. Choose 24, 48, 96, 120 or 240 photos per page and adjust thumbnail size separately. Both settings are saved, and selections can span pages.
+
+**Clear imported** clears the current list. Right-click **Remove from this selection** to remove just the selected entries. Both preserve the original files and favorites. **Move to folder** relocates selected files, skips existing names and updates favorites for successful moves.
 
 The same selection interface works for photographers and clients. Favorites stay on the current device; export the filename list for handoff. This release does not include a dedicated RAW workflow, star ratings, photo editing or cloud delivery.
 

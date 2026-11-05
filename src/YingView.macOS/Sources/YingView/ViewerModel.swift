@@ -23,7 +23,7 @@ enum ImageDecoder {
     static let identifiers = (CGImageSourceCopyTypeIdentifiers() as? [String]) ?? []
     static let types = identifiers.compactMap { UTType($0) }.filter { $0.conforms(to: .image) }
     static let extensions: Set<String> = Set(types.flatMap { $0.tags[.filenameExtension] ?? [] }.map { $0.lowercased() })
-    static func decode(_ url: URL, thumbnail: Bool = false) throws -> DecodedImage {
+    static func decode(_ url: URL, thumbnail: Bool = false, thumbnailPixels: Int = 160) throws -> DecodedImage {
         decodeSlots.wait()
         defer { decodeSlots.signal() }
         if Task.isCancelled { throw CancellationError() }
@@ -42,7 +42,7 @@ enum ImageDecoder {
             if Task.isCancelled { throw CancellationError() }
             let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
                 kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: thumbnail ? 160 : max(w.intValue, h.intValue),
+                kCGImageSourceThumbnailMaxPixelSize: thumbnail ? min(max(thumbnailPixels, 160), 720) : max(w.intValue, h.intValue),
                 kCGImageSourceShouldCacheImmediately: true]
             guard let frame = CGImageSourceCreateThumbnailAtIndex(source, i, options as CFDictionary) else { throw CocoaError(.fileReadCorruptFile) }
             frames.append(frame)
@@ -53,8 +53,8 @@ enum ImageDecoder {
         }
         return DecodedImage(frames: frames, delays: delays)
     }
-    static func load(_ url: URL, thumbnail: Bool = false) async throws -> DecodedImage {
-        let worker = Task.detached(priority: thumbnail ? .utility : .userInitiated) { try decode(url, thumbnail: thumbnail) }
+    static func load(_ url: URL, thumbnail: Bool = false, thumbnailPixels: Int = 160) async throws -> DecodedImage {
+        let worker = Task.detached(priority: thumbnail ? .utility : .userInitiated) { try decode(url, thumbnail: thumbnail, thumbnailPixels: thumbnailPixels) }
         return try await withTaskCancellationHandler(operation: { try await worker.value }, onCancel: { worker.cancel() })
     }
 }
@@ -78,6 +78,11 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
     @Published var photoSelection = PhotoSelectionState()
     @Published var favoritesOnly = false
     @Published var photoBusy = false
+    @Published var photoPage = 0
+    @Published private(set) var photoPageSize: Int
+    @Published var photoThumbnailSize: Double { didSet { defaults.set(photoThumbnailSize, forKey: "photoThumbnailSize") } }
+    private var photoPreviewScope: [URL]?
+    static let photoPageSizes = [24, 48, 96, 120, 240]
     @Published var photoStatus: String?
     @Published var photoLists: [String: [String]] = [:] { didSet { favoriteCacheKey = nil } }
     private var favoriteCacheKey: String?
@@ -104,6 +109,10 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
 
     init(defaults: UserDefaults? = nil) {
         self.defaults = defaults ?? (ProcessInfo.processInfo.arguments.contains("--smoke-test") ? UserDefaults(suiteName: "YingViewSmoke-\(UUID().uuidString)")! : .standard)
+        let pageSize = self.defaults.integer(forKey: "photoPageSize")
+        photoPageSize = Self.photoPageSizes.contains(pageSize) ? pageSize : 48
+        let thumbnailSize = self.defaults.double(forKey: "photoThumbnailSize")
+        photoThumbnailSize = (120...320).contains(thumbnailSize) ? thumbnailSize : 180
         accent = self.defaults.string(forKey: "accent") ?? "blue"
         preset = self.defaults.string(forKey: "preset") ?? "dark"
         let stored = self.defaults.double(forKey: "textSize")
@@ -115,7 +124,7 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
     func rotate() { rotation = (rotation + 1) % 4; fit() }
     func open(_ url: URL) {
         guard !photoBusy else { return }
-        photoSelection.replace([]); comparisonURL = nil; compare = false;
+        photoPage = 0; photoPreviewScope = nil; photoSelection.replace([]); comparisonURL = nil; compare = false;
         let directory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
         folder = directory ? url : url.deletingLastPathComponent()
         explicitSelection = false
@@ -137,6 +146,7 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
     func refresh() {
         guard !photoBusy else { return }
         let savedSelection = photoSelection; let oldComparison = comparisonURL; let wasComparing = compare
+        let wasPreviewing = photoPreviewScope != nil, savedPage = photoPage
         let selected = current; let oldIndex = index
         if explicitSelection {
             files = files.filter { FileManager.default.fileExists(atPath: $0.path) }
@@ -145,7 +155,11 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
             open(folder)
             select(selected.flatMap { previous in files.firstIndex(where: { ViewerLogic.sameFile($0, previous) }) } ?? min(oldIndex, max(files.count - 1, 0)))
         }
-        photoSelection = savedSelection; photoSelection.retain(files)
+        photoSelection = savedSelection; photoSelection.retain(files); photoPage = min(savedPage, photoPageCount - 1)
+        if wasPreviewing {
+            photoPreviewScope = selectionFiles
+            if let first = photoPreviewScope?.first, current.map({ photoPreviewScope?.contains($0) != true }) == true, let target = files.firstIndex(of: first) { select(target) }
+        }
         if let reference = oldComparison, let left = current, !ViewerLogic.sameFile(left, reference), files.contains(where: { ViewerLogic.sameFile($0, reference) }) {
             comparisonURL = reference; compare = wasComparing; loadComparison()
         } else if oldComparison != nil { comparisonURL = nil; compare = false; secondImage = nil; secondError = nil }
@@ -170,7 +184,7 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
                 (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true ? try scan(url) : [url]
             }.map(\.standardizedFileURL).filter { Self.isRegularImage($0) && seen.insert(PhotoSelectionState.identity($0)).inserted }
             guard !candidates.isEmpty else { photoStatus = Copy.t("没有找到支持的图片。", "No supported images found."); return }
-            favoritesOnly = false; photoSelection.replace([]); comparisonURL = nil; compare = false
+            favoritesOnly = false; photoPage = 0; photoPreviewScope = nil; photoSelection.replace([]); comparisonURL = nil; compare = false
             if urls.count == 1 { open(candidates[0]) }
             else { explicitSelection = true; folder = nil; files = ViewerLogic.naturalSort(candidates); select(0) }
         } catch { photoStatus = Copy.t("无法读取文件夹，原照片列表已保留。", "Could not read the folder. The previous photo list was kept.") }
@@ -214,13 +228,31 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
             }
         }
     }
-    func move(_ delta: Int) { if files.indices.contains(index + delta) { select(index + delta) } }
+    private func moveIndex(_ delta: Int) -> Int? {
+        if let scope = photoPreviewScope, let current, let position = scope.firstIndex(of: current) {
+            guard scope.indices.contains(position + delta) else { return nil }
+            return files.firstIndex(of: scope[position + delta])
+        }
+        return files.indices.contains(index + delta) ? index + delta : nil
+    }
+    func canMove(_ delta: Int) -> Bool { moveIndex(delta) != nil }
+    func move(_ delta: Int) { if let next = moveIndex(delta) { select(next) } }
+    var previewingSelection: Bool { photoPreviewScope != nil }
+    func togglePhotoSelection() {
+        guard !photoBusy else { return }
+        if showSelection { showSelection = false; return }
+        if photoPreviewScope != nil, let current, let i = selectionFiles.firstIndex(of: current) {
+            photoSelection.replace([current]); photoPage = i / photoPageSize
+        }
+        photoPreviewScope = nil; showSelection = true
+    }
     @discardableResult func trashCurrent() -> Bool {
         guard !photoBusy, let url = current, Self.isRegularImage(url) else { return false }
         do {
+            let adjacent = (moveIndex(1) ?? moveIndex(-1)).map { files[$0] }
             try FileManager.default.trashItem(at: url, resultingItemURL: nil)
-            files.remove(at: index)
-            select(ViewerLogic.deletionResult(remainingCount: files.count, deletedIndex: index).index)
+            files.remove(at: index); photoPreviewScope?.removeAll { $0 == url }
+            select(adjacent.flatMap { files.firstIndex(of: $0) } ?? ViewerLogic.deletionResult(remainingCount: files.count, deletedIndex: index).index)
             return true
         } catch { errorText = Copy.t("未能移入废纸篓。请检查文件是否仍在原位置，以及访问权限。", "Could not move this image to Trash. Check its location and access permissions."); return false }
     }
@@ -254,27 +286,105 @@ enum CanvasAction { case fit, actual, zoomIn, zoomOut }
     var selectionFiles: [URL] { files.filter { !favoritesOnly || favoriteIDs.contains(PhotoSelectionState.identity($0)) } }
     var selectedPhotos: [URL] { files.filter { photoSelection.selected.contains(PhotoSelectionState.identity($0)) } }
     func selectPhoto(_ url: URL, command: Bool, shift: Bool) { photoSelection.select(url, ordered: selectionFiles, toggle: command, range: shift) }
-    func setFavorites(_ urls: [URL], favorite: Bool) {
-        guard !photoBusy else { return }
+    var photoPageCount: Int { max(1, (selectionFiles.count + photoPageSize - 1) / photoPageSize) }
+    var visiblePhotoPage: Int { min(max(photoPage, 0), photoPageCount - 1) }
+    var photosOnPage: [URL] { Array(selectionFiles.dropFirst(visiblePhotoPage * photoPageSize).prefix(photoPageSize)) }
+    func changePhotoPage(_ delta: Int) { photoPage = min(max(visiblePhotoPage + delta, 0), photoPageCount - 1) }
+    func setPhotoPageSize(_ size: Int) {
+        guard Self.photoPageSizes.contains(size) else { return }
+        let anchor = visiblePhotoPage * photoPageSize
+        photoPageSize = size; defaults.set(size, forKey: "photoPageSize"); photoPage = anchor / size
+    }
+    @discardableResult private func updateFavorites(_ edit: (inout Set<String>) -> Void) -> Bool {
         var lists: [String: [String]] = [:]
         if let existing = defaults.object(forKey: "photoSelections.v1") {
-            guard let data = existing as? [String: Any], data["version"] as? Int == 1, let saved = data["lists"] as? [String: [String]] else { photoStatus = Copy.t("收藏清单无法读取，原数据未被覆盖。", "The favorite list could not be read. Existing data was not overwritten."); return }
+            guard let data = existing as? [String: Any], data["version"] as? Int == 1, let saved = data["lists"] as? [String: [String]] else { photoStatus = Copy.t("收藏清单无法读取，原数据未被覆盖。", "The favorite list could not be read. Existing data was not overwritten."); return false }
             lists = saved
         }
-        var ids = Set(lists[photoListKey] ?? [])
-        for url in urls { if favorite { ids.insert(PhotoSelectionState.identity(url)) } else { ids.remove(PhotoSelectionState.identity(url)) } }
+        var ids = Set(lists[photoListKey] ?? []); edit(&ids)
         lists[photoListKey] = ids.sorted(); defaults.set(["version": 1, "lists": lists] as [String: Any], forKey: "photoSelections.v1"); photoLists = lists
         if favoritesOnly { photoSelection.retain(selectionFiles) }
+        return true
+    }
+    func setFavorites(_ urls: [URL], favorite: Bool) {
+        guard !photoBusy else { return }
+        updateFavorites { ids in
+            for url in urls { if favorite { ids.insert(PhotoSelectionState.identity(url)) } else { ids.remove(PhotoSelectionState.identity(url)) } }
+        }
     }
     func selectAllPhotos() {
         if let editor = NSApp.keyWindow?.firstResponder as? NSTextView { editor.selectAll(nil); return }
         photoSelection.replace(selectionFiles)
     }
+    func toggleComparison() { if showSelection { compareSelectedPhotos() } else { compare.toggle() } }
     func compareSelectedPhotos() {
-        let pair = selectedPhotos; guard pair.count == 2, !photoBusy else { return }
-        comparisonURL = pair[1]; select(files.firstIndex(of: pair[0])!); compare = true; showSelection = false
+        guard !photoBusy else { return }
+        let filtered = selectionFiles
+        guard filtered.count >= 2 else {
+            photoStatus = favoritesOnly ? Copy.t("收藏筛选中不足两张；取消“只看收藏”即可选择其他照片。", "Fewer than two favorites. Turn off Favorites only to choose more photos.") : Copy.t("打开至少两张照片即可对比。", "Open at least two photos to compare.")
+            return
+        }
+        let picked = filtered.filter { photoSelection.selected.contains(PhotoSelectionState.identity($0)) }
+        let candidates = picked.count >= 2 ? picked : filtered
+        let first = picked.first ?? (current.flatMap { candidates.contains($0) ? $0 : nil }) ?? candidates[0]
+        let position = candidates.firstIndex(of: first) ?? 0
+        photoPreviewScope = nil; comparisonURL = candidates[(position + 1) % candidates.count]
+        select(files.firstIndex(of: first)!); compare = true; showSelection = false
     }
-    func previewPhoto(_ url: URL) { guard !photoBusy, let i = files.firstIndex(of: url) else { return }; compare = false; comparisonURL = nil; select(i); showSelection = false }
+    func previewPhoto(_ url: URL) {
+        guard !photoBusy, let i = files.firstIndex(of: url) else { return }
+        photoPreviewScope = selectionFiles; compare = false; comparisonURL = nil; select(i); showSelection = false
+    }
+    func clearPhotoImport() {
+        guard !photoBusy else { return }
+        files = []; folder = nil; explicitSelection = true; photoPreviewScope = nil; photoSelection.replace([]); favoritesOnly = false; photoPage = 0
+        comparisonURL = nil; compare = false; select(0)
+        photoStatus = Copy.t("已清空导入列表，文件和收藏已保留。", "Imported list cleared. Files and favorites were kept.")
+    }
+    func selectForContext(_ url: URL) {
+        if !photoSelection.selected.contains(PhotoSelectionState.identity(url)) { photoSelection.replace([url]) }
+    }
+    private func removePhotoPaths(_ paths: Set<String>) {
+        let previous = current, oldIndex = index
+        files.removeAll { paths.contains(PhotoSelectionState.identity($0)) }; explicitSelection = true; photoPreviewScope = nil
+        photoSelection.retain(files); comparisonURL = nil; compare = false
+        select(previous.flatMap { files.firstIndex(of: $0) } ?? min(oldIndex, max(files.count - 1, 0)))
+        photoPage = visiblePhotoPage
+    }
+    func removeSelectedPhotos() {
+        guard !photoBusy else { return }
+        let paths = photoSelection.selected; guard !paths.isEmpty else { return }
+        removePhotoPaths(paths)
+        photoStatus = Copy.t("已移出 \(paths.count) 张，文件和收藏已保留。", "Removed \(paths.count) from this selection. Files and favorites were kept.")
+    }
+    func choosePhotoMoveFolder() {
+        guard !photoBusy, !selectedPhotos.isEmpty else { return }
+        let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false
+        panel.message = Copy.t("选择移动所选照片的目标文件夹", "Choose a destination for the selected photos")
+        if panel.runModal() == .OK, let url = panel.url { Task { await moveSelectedPhotos(to: url) } }
+    }
+    func moveSelectedPhotos(to folder: URL) async {
+        let targets = selectedPhotos; guard !photoBusy, !targets.isEmpty else { return }
+        photoBusy = true; defer { photoBusy = false }
+        let result = await Task.detached { () -> ([String: String], Int, Int) in
+            var moved: [String: String] = [:], conflicts = 0, failed = 0
+            for url in targets {
+                let target = folder.appendingPathComponent(url.lastPathComponent)
+                if FileManager.default.fileExists(atPath: target.path) { conflicts += 1; continue }
+                guard Self.isRegularImage(url) else { failed += 1; continue }
+                do { try FileManager.default.moveItem(at: url, to: target); moved[PhotoSelectionState.identity(url)] = PhotoSelectionState.identity(target) }
+                catch { failed += 1 }
+            }
+            return (moved, conflicts, failed)
+        }.value
+        var saved = true
+        if !result.0.isEmpty {
+            removePhotoPaths(Set(result.0.keys))
+            saved = updateFavorites { ids in for (source, target) in result.0 where ids.remove(source) != nil { ids.insert(target) } }
+        }
+        photoStatus = Copy.t("已移动 \(result.0.count) 张；同名跳过 \(result.1) 张；失败 \(result.2) 张。", "Moved \(result.0.count); skipped \(result.1) existing names; \(result.2) failed.")
+        if !saved { photoStatus? += Copy.t(" 收藏记录未能更新。", " Favorites could not be updated.") }
+    }
     func trashSelection() {
         let targets = selectedPhotos
         guard !photoBusy, !targets.isEmpty, !(NSApp.keyWindow?.firstResponder is NSTextView) else { return }

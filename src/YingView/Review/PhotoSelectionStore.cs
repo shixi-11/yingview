@@ -12,8 +12,14 @@ public sealed class PhotoSelectionStore
     public HashSet<string> Read(string list) => new(ReadData().Lists.GetValueOrDefault(list) ?? [], StringComparer.OrdinalIgnoreCase);
     public HashSet<string> Set(string list, IEnumerable<string> files, bool favorite)
     {
-        if (string.IsNullOrWhiteSpace(list) || list.Length > 100) throw new ArgumentException("Invalid selection list name.", nameof(list));
         var paths = files.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        return Update(list, set => { foreach (var file in paths) { if (favorite) set.Add(file); else set.Remove(file); } });
+    }
+    internal HashSet<string> Relocate(string list, IReadOnlyDictionary<string, string> moved)
+        => Update(list, set => { foreach (var (source, target) in moved) if (set.Remove(source)) set.Add(Path.GetFullPath(target)); });
+    private HashSet<string> Update(string list, Action<HashSet<string>> mutate)
+    {
+        if (string.IsNullOrWhiteSpace(list) || list.Length > 100) throw new ArgumentException("Invalid selection list name.", nameof(list));
         var name = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(_path.ToUpperInvariant())))[..24];
         using var gate = new Mutex(false, "Local\\YingView.PhotoSelections." + name);
         bool locked;
@@ -23,7 +29,7 @@ public sealed class PhotoSelectionStore
         {
             var data = ReadData();
             var set = new HashSet<string>(data.Lists.GetValueOrDefault(list) ?? [], StringComparer.OrdinalIgnoreCase);
-            foreach (var file in paths) { if (favorite) set.Add(file); else set.Remove(file); }
+            mutate(set);
             data.Lists[list] = set.Order(StringComparer.OrdinalIgnoreCase).ToArray();
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             var temporary = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";

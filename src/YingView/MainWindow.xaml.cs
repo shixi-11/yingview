@@ -689,19 +689,19 @@ public partial class MainWindow : Window
         if (_deleting || _loading) return;
         _slideshow.Stop();
         var current = _current ?? ""; var previousIndex = _index;
-        var picker = new Review.PhotoSelectionWindow(_files, current, IsChinese) { Owner = this };
+        var picker = new Review.PhotoSelectionWindow(_files, current, IsChinese, preferences: _settings) { Owner = this };
         picker.ShowDialog();
-        if (picker.RecycledFiles.Count == 0 && !picker.ScopeChanged) return;
-        if (picker.ScopeChanged) { _files = picker.CurrentFiles.ToArray(); current = _files.FirstOrDefault() ?? ""; previousIndex = 0; }
-        await ApplyRecycledSelectionAsync(picker.RecycledFiles, current, previousIndex);
+        if (picker.RecycledFiles.Count == 0 && picker.MovedFiles.Count == 0 && !picker.ScopeChanged) return;
+        var scope = picker.ScopeChanged ? picker.CurrentFiles.ToArray() : null;
+        await ApplyRecycledSelectionAsync(picker.RecycledFiles.Concat(picker.MovedFiles), current, previousIndex, scope);
     }
-    internal async Task ApplyRecycledSelectionAsync(IEnumerable<string> recycled, string current, int previousIndex)
+    internal async Task ApplyRecycledSelectionAsync(IEnumerable<string> recycled, string current, int previousIndex, string[]? scope = null)
     {
         var removed = recycled.ToHashSet(StringComparer.OrdinalIgnoreCase);
         ++_openGeneration; // Invalidate any older folder indexing without expanding this selection.
         foreach (var path in removed) RemoveCached(path);
         _settings.RecentFiles.RemoveAll(removed.Contains);
-        _files = _files.Where(p => !removed.Contains(p)).ToArray();
+        _files = scope ?? _files.Where(p => !removed.Contains(p)).ToArray();
         if (_files.Length == 0)
             ShowEmptyState(T("没有可显示的照片", "No photos to display"), T("打开或拖入其他照片文件夹。", "Open or drop another photo folder."));
         else
