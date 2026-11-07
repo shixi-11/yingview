@@ -132,7 +132,6 @@ public partial class MainWindow : Window
         Tip(ZoomInButton, T("放大", "Zoom in") + " · +"); Tip(ZoomOutButton, T("缩小", "Zoom out") + " · −");
         PhotoSelectionLabel.Text = T("选片", "Select photos");
         Tip(PhotoSelectionButton, T("打开文件夹、多选、收藏与对比 · Ctrl+Shift+P", "Open folders, select, favorite and compare · Ctrl+Shift+P"));
-        Tip(StudioButton, T("自定义界面风格", "Customize appearance"));
         Tip(DeleteButton, T("移入回收站", "Move to Recycle Bin") + " · Delete / Del");
         Tip(FilmstripToggleButton, T("展开或收起缩略图", "Show or hide thumbnails") + " · T");
         ApplyChrome();
@@ -680,7 +679,6 @@ public partial class MainWindow : Window
     }
     private void ApplyCompactToolbar(bool compact) { _compactToolbar = compact; ApplyChrome(); }
     private void FilmstripClick(object sender, RoutedEventArgs e) => ToggleFilmstrip();
-    private void StyleStudioClick(object sender, RoutedEventArgs e) => OpenStyleStudio();
     private void OpenStyleStudio()
     {
         var studio = new StyleStudioWindow(_settings, ApplyTheme, ApplyInterfaceScale, ApplyCompactToolbar) { Owner = this };

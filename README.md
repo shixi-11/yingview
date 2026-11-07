@@ -4,7 +4,7 @@ See the whole picture, then look closer. YingView is a free, open-source image v
 
 [简体中文](README.zh-CN.md) · [Download](https://github.com/shixi-11/yingview/releases/latest) · [Report an issue](https://github.com/shixi-11/yingview/issues) · [Support development](https://shixilin.com/en/support)
 
-**Windows source: 0.3.24 Preview · Windows 10/11 x64 · AGPL-3.0-only**
+**Windows source: 0.3.25 Preview · Windows 10/11 x64 · AGPL-3.0-only**
 
 ## Windows features
 

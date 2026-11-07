@@ -4,7 +4,7 @@
 
 [English](README.md) · [下载客户端](https://github.com/shixi-11/yingview/releases/latest) · [反馈问题](https://github.com/shixi-11/yingview/issues) · [支持后续维护](https://shixilin.com/zh/support)
 
-**Windows 源码版本：0.3.24 预览版 · Windows 10/11 x64 · AGPL-3.0-only**
+**Windows 源码版本：0.3.25 预览版 · Windows 10/11 x64 · AGPL-3.0-only**
 
 ## Windows 版能做什么
 
